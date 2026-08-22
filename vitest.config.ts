@@ -17,6 +17,8 @@ export default defineConfig({
         "server/generation/compiler.ts",
         "lib/generation/capability.ts",
         "lib/auth.ts",
+        "server/auth/workspace.ts",
+        "lib/files.ts",
       ],
       thresholds: { lines: 75, functions: 75, branches: 70, statements: 75 },
     },

@@ -1,5 +1,5 @@
 {
-  "name": "higgsfield-replacement",
+  "name": "vesperframe",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -7,22 +7,42 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "validate:migrations": "tsx scripts/validate-migrations.ts",
+    "scan:secrets": "tsx scripts/scan-secrets.ts",
+    "smoke:provider": "tsx scripts/real-provider-smoke.ts",
+    "verify": "npm run format && npm run lint && npm run typecheck && npm test && npm run validate:migrations && npm run scan:secrets && npm run build"
   },
   "dependencies": {
+    "@supabase/ssr": "0.12.4",
+    "@supabase/supabase-js": "2.112.3",
+    "file-type": "22.0.2",
     "lucide-react": "0.468.0",
+    "music-metadata": "11.15.0",
     "next": "16.3.2",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "sharp": "0.35.3",
+    "zod": "4.4.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.62.1",
     "@types/node": "^24.10.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "@vitest/coverage-v8": "4.1.11",
     "eslint": "^9.39.0",
     "eslint-config-next": "16.3.2",
+    "prettier": "3.6.2",
+    "tsx": "4.23.12",
     "typescript": "^5.9.3",
     "vitest": "4.1.11"
   }

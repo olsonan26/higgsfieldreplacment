@@ -47,14 +47,14 @@ No third-party source code or private assets were copied into this repository.
 
 ## Feature map
 
-| Product need | Implementation |
-|---|---|
-| Add a Kie key inside the product | Settings modal → server verification → HttpOnly cookie |
-| Centrally managed credential | Vercel `KIE_API_KEY` |
-| Use curated models | Capability registry in `lib/models.ts` |
-| Use any Kie model | Custom model ID + editable JSON preflight |
-| Keep characters/locations/frames nearby | My Elements reference library |
-| Know what is running | Persistent queue + polling |
-| Know what was spent | Receipts ledger using provider-reported credits only |
-| Work on phone and desktop | Three responsive layout breakpoints |
-| Avoid accidental spend | Explicit confirmation screen before task creation |
+| Product need                            | Implementation                                         |
+| --------------------------------------- | ------------------------------------------------------ |
+| Add a Kie key inside the product        | Settings modal → server verification → HttpOnly cookie |
+| Centrally managed credential            | Vercel `KIE_API_KEY`                                   |
+| Use curated models                      | Capability registry in `lib/models.ts`                 |
+| Use any Kie model                       | Custom model ID + editable JSON preflight              |
+| Keep characters/locations/frames nearby | My Elements reference library                          |
+| Know what is running                    | Persistent queue + polling                             |
+| Know what was spent                     | Receipts ledger using provider-reported credits only   |
+| Work on phone and desktop               | Three responsive layout breakpoints                    |
+| Avoid accidental spend                  | Explicit confirmation screen before task creation      |

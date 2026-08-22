@@ -1,0 +1,117 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`deterministic generation compiler > produces checked-in exact default payload snapshots for every preset > gemini-omni-video 1`] = `
+{
+  "input": {
+    "aspect_ratio": "16:9",
+    "duration": "4",
+    "prompt": "A lone cyclist crosses a rain-lit bridge
+
+Creative direction — Film setup: Noir genre; 1980s era; Measured tempo. Camera: 35mm Film body; Anamorphic lens; f/4 Moderate aperture; Dolly zoom movement. Color palette: Nocturne. Lighting: Moonlit.",
+    "resolution": "720p",
+  },
+  "model": "gemini-omni-video",
+}
+`;
+
+exports[`deterministic generation compiler > produces checked-in exact default payload snapshots for every preset > gpt-image-2 1`] = `
+{
+  "input": {
+    "aspect_ratio": "auto",
+    "prompt": "A lone cyclist crosses a rain-lit bridge
+
+Creative direction — Film setup: Noir genre; 1980s era; Measured tempo. Camera: 35mm Film body; Anamorphic lens; f/4 Moderate aperture; Dolly zoom movement. Color palette: Nocturne. Lighting: Moonlit.",
+    "resolution": "1K",
+  },
+  "model": "gpt-image-2-text-to-image",
+}
+`;
+
+exports[`deterministic generation compiler > produces checked-in exact default payload snapshots for every preset > grok-imagine-image-2 1`] = `
+{
+  "input": {
+    "aspect_ratio": "1:1",
+    "prompt": "A lone cyclist crosses a rain-lit bridge
+
+Creative direction — Film setup: Noir genre; 1980s era; Measured tempo. Camera: 35mm Film body; Anamorphic lens; f/4 Moderate aperture; Dolly zoom movement. Color palette: Nocturne. Lighting: Moonlit.",
+  },
+  "model": "grok-imagine-image-2-0/text-to-image",
+}
+`;
+
+exports[`deterministic generation compiler > produces checked-in exact default payload snapshots for every preset > grok-imagine-video 1`] = `
+{
+  "input": {
+    "aspect_ratio": "2:3",
+    "duration": 6,
+    "mode": "normal",
+    "prompt": "A lone cyclist crosses a rain-lit bridge
+
+Creative direction — Film setup: Noir genre; 1980s era; Measured tempo. Camera: 35mm Film body; Anamorphic lens; f/4 Moderate aperture; Dolly zoom movement. Color palette: Nocturne. Lighting: Moonlit.",
+    "resolution": "480p",
+  },
+  "model": "grok-imagine/text-to-video",
+}
+`;
+
+exports[`deterministic generation compiler > produces checked-in exact default payload snapshots for every preset > kling-3-video 1`] = `
+{
+  "input": {
+    "aspect_ratio": "16:9",
+    "duration": "5",
+    "mode": "pro",
+    "multi_prompt": [],
+    "multi_shots": false,
+    "prompt": "A lone cyclist crosses a rain-lit bridge
+
+Creative direction — Film setup: Noir genre; 1980s era; Measured tempo. Camera: 35mm Film body; Anamorphic lens; f/4 Moderate aperture; Dolly zoom movement. Color palette: Nocturne. Lighting: Moonlit.",
+    "sound": false,
+  },
+  "model": "kling-3.0/video",
+}
+`;
+
+exports[`deterministic generation compiler > produces checked-in exact default payload snapshots for every preset > nano-banana-2 1`] = `
+{
+  "input": {
+    "aspect_ratio": "auto",
+    "output_format": "jpg",
+    "prompt": "A lone cyclist crosses a rain-lit bridge
+
+Creative direction — Film setup: Noir genre; 1980s era; Measured tempo. Camera: 35mm Film body; Anamorphic lens; f/4 Moderate aperture; Dolly zoom movement. Color palette: Nocturne. Lighting: Moonlit.",
+    "resolution": "1K",
+  },
+  "model": "nano-banana-2",
+}
+`;
+
+exports[`deterministic generation compiler > produces checked-in exact default payload snapshots for every preset > seedance-2 1`] = `
+{
+  "input": {
+    "aspect_ratio": "16:9",
+    "duration": 5,
+    "generate_audio": true,
+    "prompt": "A lone cyclist crosses a rain-lit bridge
+
+Creative direction — Film setup: Noir genre; 1980s era; Measured tempo. Camera: 35mm Film body; Anamorphic lens; f/4 Moderate aperture; Dolly zoom movement. Color palette: Nocturne. Lighting: Moonlit.",
+    "resolution": "720p",
+  },
+  "model": "bytedance/seedance-2",
+}
+`;
+
+exports[`deterministic generation compiler > produces checked-in exact default payload snapshots for every preset > wan-2-7-text-video 1`] = `
+{
+  "input": {
+    "duration": 5,
+    "prompt": "A lone cyclist crosses a rain-lit bridge
+
+Creative direction — Film setup: Noir genre; 1980s era; Measured tempo. Camera: 35mm Film body; Anamorphic lens; f/4 Moderate aperture; Dolly zoom movement. Color palette: Nocturne. Lighting: Moonlit.",
+    "prompt_extend": true,
+    "ratio": "16:9",
+    "resolution": "1080p",
+    "watermark": false,
+  },
+  "model": "wan/2-7-text-to-video",
+}
+`;

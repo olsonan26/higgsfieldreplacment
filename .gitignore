@@ -5,6 +5,7 @@
 
 # Next.js
 /.next/
+/.next-stale-*/
 /out/
 
 # production
@@ -24,3 +25,4 @@
 .DS_Store
 Thumbs.db
 *.log
+*.tsbuildinfo

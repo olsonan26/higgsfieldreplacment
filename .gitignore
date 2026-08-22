@@ -20,6 +20,7 @@
 /tmp/
 /test-results/
 /playwright-report/
+/coverage/
 
 # OS/editor
 .DS_Store

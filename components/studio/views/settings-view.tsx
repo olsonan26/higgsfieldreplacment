@@ -449,9 +449,9 @@ export function SettingsView({ workspace }: { workspace: StudioWorkspace }) {
               </div>
               <p className="muted">
                 Import useful project, reference, favorite, and job metadata
-                from this browser&apos;s earlier prototype. Temporary URLs and task
-                identifiers are stripped; reported credits remain unverified
-                history and never enter the usage ledger.
+                from this browser&apos;s earlier prototype. Temporary URLs and
+                task identifiers are stripped; reported credits remain
+                unverified history and never enter the usage ledger.
               </p>
               <button
                 className="button secondary"

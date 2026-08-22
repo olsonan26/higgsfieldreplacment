@@ -107,10 +107,9 @@ The implementation combines observations from the live Higgsfield generation exp
 
 Official API references:
 
-- [Kie Market API overview](https://docs.kie.ai/market/quickstart)
-- [Create task](https://docs.kie.ai/market/common-api/create-task)
-- [Query task](https://docs.kie.ai/market/common-api/query-task)
-- [File upload](https://docs.kie.ai/common-api/upload-file-base64)
+- [Create task contract (GPT Image 2 example)](https://docs.kie.ai/market/gpt/gpt-image-2-text-to-image)
+- [Unified task status and results](https://docs.kie.ai/market/common/get-task-detail)
+- [Base64 reference upload](https://docs.kie.ai/file-upload-api/upload-file-base-64)
 
 ## License
 

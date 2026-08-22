@@ -4,6 +4,8 @@
 
 Configure the public Supabase URL/publishable key and all server-only values listed in `.env.example`. `/api/health` proves the process is alive; `/api/readiness` must return 200 before enabling generation. Configure scheduled reconciliation and verify its secret-protected invocation. Keep every model spend policy disabled until its conservative reserve is reviewed.
 
+The checked-in Hobby-compatible Vercel fallback runs daily. A production release must upgrade the hosting plan or connect an authenticated external scheduler to `/api/internal/reconcile` every two minutes; callbacks remain the primary completion path. Do not claim the missed-callback SLA while only the daily fallback is active.
+
 ## Credential rotation and revocation
 
 1. Disable model spending policies or remove generation permission to stop new spend.

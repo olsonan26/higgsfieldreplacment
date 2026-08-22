@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Aperture } from "lucide-react";
 import { LoginForm } from "@/app/login/login-form";
+import { VesperMark } from "@/components/brand/vesper-mark";
 import { getAuthenticatedUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
@@ -16,10 +16,7 @@ export default async function LoginPage() {
     <main className="login-page">
       <section className="login-story" aria-labelledby="login-title">
         <div className="brand-lockup">
-          <span>
-            <Aperture aria-hidden="true" />
-          </span>
-          <strong>VesperFrame</strong>
+          <VesperMark />
         </div>
         <p className="login-eyebrow">CINEMATIC GENERATION WORKSPACE</p>
         <h1 id="login-title">Direct the impossible.</h1>

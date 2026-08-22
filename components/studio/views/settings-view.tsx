@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, ShieldCheck, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  DatabaseBackup,
+  ShieldCheck,
+  XCircle,
+} from "lucide-react";
 import { apiRequest } from "@/lib/client/api";
 import type { StudioWorkspace } from "@/lib/studio/types";
 
@@ -166,6 +171,61 @@ export function SettingsView({ workspace }: { workspace: StudioWorkspace }) {
         caught instanceof Error
           ? caught.message
           : "Member policy could not be updated",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function importPrototype() {
+    const raw = Object.keys(window.localStorage)
+      .map((key) => window.localStorage.getItem(key))
+      .find((value) => {
+        if (!value) return false;
+        try {
+          const candidate = JSON.parse(value) as Record<string, unknown>;
+          return (
+            typeof candidate.projectName === "string" &&
+            Array.isArray(candidate.references) &&
+            Array.isArray(candidate.jobs)
+          );
+        } catch {
+          return false;
+        }
+      });
+    if (!raw) {
+      setError("No prototype data was found in this browser.");
+      return;
+    }
+    if (
+      !window.confirm(
+        "Create one imported project from this browser's prototype metadata? Old receipts will be marked unverified and will not affect usage.",
+      )
+    )
+      return;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await apiRequest<{
+        projectId: string;
+        summary: { referenceCount: number; historicalJobCount: number };
+      }>("/api/import/prototype", {
+        method: "POST",
+        body: JSON.stringify({
+          workspaceId: workspace.id,
+          payload: JSON.parse(raw),
+        }),
+      });
+      setStatus(
+        `Imported ${result.summary.referenceCount} reference records and ${result.summary.historicalJobCount} unverified historical jobs.`,
+      );
+      const url = new URL(window.location.href);
+      url.searchParams.set("project", result.projectId);
+      window.location.assign(url);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Prototype data could not be imported",
       );
     } finally {
       setBusy(false);
@@ -379,6 +439,30 @@ export function SettingsView({ workspace }: { workspace: StudioWorkspace }) {
               ))}
             </div>
           </section>
+          {workspace.role !== "viewer" && (
+            <section className="panel">
+              <div className="panel-title">
+                <span>
+                  <DatabaseBackup /> One-time prototype import
+                </span>
+                <small>Explicit and non-authoritative</small>
+              </div>
+              <p className="muted">
+                Import useful project, reference, favorite, and job metadata
+                from this browser&apos;s earlier prototype. Temporary URLs and task
+                identifiers are stripped; reported credits remain unverified
+                history and never enter the usage ledger.
+              </p>
+              <button
+                className="button secondary"
+                onClick={importPrototype}
+                disabled={busy}
+                data-testid="prototype-import"
+              >
+                Import data from this browser
+              </button>
+            </section>
+          )}
           {data.readiness && (
             <section className="panel">
               <div className="panel-title">

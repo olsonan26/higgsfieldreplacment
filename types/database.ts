@@ -1226,6 +1226,64 @@ export type Database = {
           },
         ];
       };
+      prototype_imports: {
+        Row: {
+          id: string;
+          imported_at: string;
+          imported_by: string;
+          payload_hash: string;
+          project_id: string;
+          sanitized_payload: Json;
+          source_key: string;
+          summary: Json;
+          workspace_id: string;
+        };
+        Insert: {
+          id?: string;
+          imported_at?: string;
+          imported_by: string;
+          payload_hash: string;
+          project_id: string;
+          sanitized_payload: Json;
+          source_key: string;
+          summary: Json;
+          workspace_id: string;
+        };
+        Update: {
+          id?: string;
+          imported_at?: string;
+          imported_by?: string;
+          payload_hash?: string;
+          project_id?: string;
+          sanitized_payload?: Json;
+          source_key?: string;
+          summary?: Json;
+          workspace_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "prototype_imports_imported_by_fkey";
+            columns: ["imported_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "prototype_imports_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "prototype_imports_workspace_id_fkey";
+            columns: ["workspace_id"];
+            isOneToOne: false;
+            referencedRelation: "workspaces";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       provider_webhook_events: {
         Row: {
           body_hash: string;
@@ -1539,6 +1597,17 @@ export type Database = {
           skill_media_scope: Database["public"]["Enums"]["generation_skill_scope"];
           skill_name: string;
           skill_slug: string;
+          target_workspace_id: string;
+        };
+        Returns: Json;
+      };
+      import_prototype_snapshot: {
+        Args: {
+          payload_hash_value: string;
+          project_name_value: string;
+          sanitized_payload_value: Json;
+          source_key_value: string;
+          summary_value: Json;
           target_workspace_id: string;
         };
         Returns: Json;

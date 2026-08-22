@@ -1,0 +1,320 @@
+.composer-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 370px;
+  gap: 18px;
+  align-items: start;
+}
+.composer-primary {
+  min-width: 0;
+  display: grid;
+  gap: 18px;
+}
+.composer-aside {
+  display: grid;
+  gap: 14px;
+  position: sticky;
+  top: 94px;
+}
+.panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: linear-gradient(150deg, rgb(23 30 50 / 88%), rgb(16 22 38 / 92%));
+  box-shadow: 0 18px 60px rgb(0 0 0 / 12%);
+}
+.composer-primary .panel {
+  padding: 20px;
+}
+.composer-aside .panel,
+.settings-sections > .panel {
+  padding: 17px;
+}
+.panel-title {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.panel-title > span {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 780;
+}
+.panel-title svg {
+  width: 18px;
+  color: var(--cyan);
+}
+.panel-title small {
+  color: var(--text-muted);
+}
+.prompt-panel textarea {
+  width: 100%;
+  min-height: 230px;
+  resize: vertical;
+  border: 0;
+  border-radius: 11px;
+  padding: 18px;
+  background: #0a0f1c;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.6;
+}
+.prompt-panel textarea::placeholder {
+  color: #65708b;
+}
+.prompt-actions {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 10px;
+}
+.prompt-actions span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 13px;
+}
+.field {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+.field small,
+.toggle-field small,
+.skills-panel > small,
+.submit-panel > small {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.field select {
+  appearance: none;
+}
+.reference-add-row {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(180px, 0.6fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+.reference-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.reference-list > span {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  grid-template-rows: 1fr 1fr;
+  column-gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 7px 7px 7px 11px;
+  background: var(--canvas);
+}
+.reference-list b {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.reference-list small {
+  color: var(--cyan);
+}
+.reference-list button {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  width: 36px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+}
+.reference-list svg {
+  width: 16px;
+}
+.external-reference {
+  display: grid;
+  grid-template-columns: 0.7fr 1fr 1fr auto;
+  align-items: end;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.settings-panel {
+  display: grid;
+  gap: 13px;
+}
+.settings-panel .panel-title {
+  margin-bottom: 0;
+}
+.toggle-field {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.toggle-field > span {
+  display: grid;
+  gap: 3px;
+}
+.toggle-field input,
+.compact-toggle input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--violet);
+}
+.shot-editor {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.shot-editor > div {
+  display: grid;
+  grid-template-columns: 1fr 62px;
+  gap: 7px;
+}
+.shot-editor textarea,
+.shot-editor input {
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 8px;
+  background: var(--canvas);
+  color: var(--text);
+}
+.skills-panel > p {
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.skill-selector {
+  position: relative;
+  margin: 12px 0;
+}
+.skill-selector summary {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  padding: 0 12px;
+  list-style: none;
+  background: var(--canvas);
+  font-weight: 700;
+}
+.skill-selector summary::-webkit-details-marker {
+  display: none;
+}
+.skill-selector summary svg {
+  width: 16px;
+}
+.skill-selector > div {
+  max-height: 280px;
+  overflow: auto;
+  position: absolute;
+  z-index: 5;
+  inset: calc(100% + 5px) 0 auto;
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  padding: 6px;
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow);
+}
+.skill-selector label {
+  min-height: 55px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 6px;
+}
+.skill-selector label:hover {
+  background: var(--surface-soft);
+}
+.skill-selector label input {
+  accent-color: var(--violet);
+}
+.skill-selector label span {
+  min-width: 0;
+  display: grid;
+}
+.skill-selector label b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.skill-selector label small {
+  color: var(--text-muted);
+}
+.skill-selector label button {
+  min-height: 36px;
+  border-radius: 7px;
+  padding: 0 8px;
+  background: transparent;
+  color: var(--cyan);
+}
+.submit-panel {
+  display: grid;
+  gap: 13px;
+}
+.batch-control {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.batch-control > span {
+  min-width: 0;
+  display: grid;
+  margin-right: auto;
+}
+.batch-control small {
+  color: var(--text-muted);
+}
+.batch-control button {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--canvas);
+}
+.batch-control svg {
+  width: 15px;
+}
+.generate-button {
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 12px;
+  padding: 0 20px;
+  background: linear-gradient(110deg, var(--violet), #6747e9 60%, var(--coral));
+  color: white;
+  font-size: 18px;
+  font-weight: 850;
+  box-shadow: 0 18px 42px rgb(124 92 255 / 27%);
+}
+.generate-button svg {
+  width: 22px;
+}
+.generate-button:not(:disabled):hover {
+  filter: brightness(1.1);
+}

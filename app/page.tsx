@@ -1,5 +1,7 @@
-import { Studio } from "@/components/studio";
+import { redirect } from "next/navigation";
+import { getAuthenticatedUser } from "@/lib/auth";
 
-export default function Home() {
-  return <Studio />;
+export default async function Home() {
+  const context = await getAuthenticatedUser();
+  redirect(context ? "/studio" : "/login");
 }

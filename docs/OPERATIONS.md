@@ -6,6 +6,20 @@ Configure the public Supabase URL/publishable key and all server-only values lis
 
 The checked-in Hobby-compatible Vercel fallback runs daily. A production release must upgrade the hosting plan or connect an authenticated external scheduler to `/api/internal/reconcile` every two minutes; callbacks remain the primary completion path. Do not claim the missed-callback SLA while only the daily fallback is active.
 
+## Authentication redirect configuration
+
+Supabase Auth must use `https://higgsfieldreplacment.vercel.app` as its hosted Site URL and must allow the exact production callback `https://higgsfieldreplacment.vercel.app/auth/callback`. The checked-in `supabase/config.toml` is the desired configuration and keeps exact localhost callback entries only for local development.
+
+After creating, restoring, or relinking the hosted Supabase project:
+
+1. Open Authentication → URL Configuration in the Supabase dashboard.
+2. Confirm the Site URL is the production origin, never `localhost`.
+3. Confirm the production `/auth/callback` URL is present in Redirect URLs.
+4. Request a fresh sign-in link from the deployed `/login` page and open it in the same browser that requested it.
+5. Verify the callback establishes a session and routes to `/studio`; an old email link cannot be reused because Auth links are single-use.
+
+If Auth logs show a successful `/otp` request with `referer` set to `localhost`, the requested redirect was rejected by the allowlist and Supabase fell back to the configured Site URL. Correct both hosted fields before resending a link.
+
 ## Credential rotation and revocation
 
 1. Disable model spending policies or remove generation permission to stop new spend.

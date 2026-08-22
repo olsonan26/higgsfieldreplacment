@@ -15,10 +15,11 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "validate:auth": "tsx scripts/validate-auth-config.ts",
     "validate:migrations": "tsx scripts/validate-migrations.ts",
     "scan:secrets": "tsx scripts/scan-secrets.ts",
     "smoke:provider": "tsx scripts/real-provider-smoke.ts",
-    "verify": "npm run format && npm run lint && npm run typecheck && npm test && npm run validate:migrations && npm run scan:secrets && npm run build"
+    "verify": "npm run format && npm run lint && npm run typecheck && npm test && npm run validate:auth && npm run validate:migrations && npm run scan:secrets && npm run build"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.4",

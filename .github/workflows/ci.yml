@@ -27,6 +27,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:coverage
+      - run: npm run validate:auth
       - run: npm run validate:migrations
       - run: npm run scan:secrets
       - run: npm audit --audit-level=high

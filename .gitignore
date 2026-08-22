@@ -1,0 +1,26 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# Next.js
+/.next/
+/out/
+
+# production
+/build
+
+# local secrets
+.env*
+!.env.example
+
+# local tooling
+.vercel
+/tmp/
+/test-results/
+/playwright-report/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+*.log

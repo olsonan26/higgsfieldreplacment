@@ -179,6 +179,7 @@ export function GenerationComposer({
   onMediaKindChange,
   restoredPrompt,
   initialDraft,
+  deploymentReady,
   onQueue,
   onExplore,
 }: {
@@ -189,6 +190,7 @@ export function GenerationComposer({
   onMediaKindChange: (kind: "image" | "video") => void;
   restoredPrompt: PromptVersion | null;
   initialDraft: Record<string, unknown> | null;
+  deploymentReady: boolean;
   onQueue: () => void;
   onExplore: () => void;
 }) {
@@ -903,7 +905,8 @@ export function GenerationComposer({
           >
             <span>{busy ? "VALIDATING" : "GENERATE"}</span>
             <small>
-              <Sparkles /> Review before spend
+              <Sparkles />
+              {deploymentReady ? "Review before spend" : "Setup required"}
             </small>
           </button>
         </div>
@@ -1413,6 +1416,7 @@ export function GenerationComposer({
           rawPrompt={rawPrompt}
           preflight={preflight}
           busy={busy}
+          deploymentReady={deploymentReady}
           submitError={submitError}
           onClose={() => {
             setPreflight(null);

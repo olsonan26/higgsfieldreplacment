@@ -25,6 +25,7 @@ export function PreflightDialog({
   rawPrompt,
   preflight,
   busy,
+  deploymentReady,
   submitError,
   onClose,
   onSubmit,
@@ -32,6 +33,7 @@ export function PreflightDialog({
   rawPrompt: string;
   preflight: PreflightData;
   busy: boolean;
+  deploymentReady: boolean;
   submitError: string;
   onClose: () => void;
   onSubmit: () => void;
@@ -126,6 +128,13 @@ export function PreflightDialog({
         exact compiled prompt. Generative models remain probabilistic, so no
         interface can guarantee perfect semantic obedience.
       </p>
+      {!deploymentReady && (
+        <p className="error-banner" role="status">
+          Generation is blocked until an owner configures the server credentials
+          shown in Settings. This preflight remains available and does not spend
+          credits.
+        </p>
+      )}
       {submitError && (
         <p className="error-banner" role="alert">
           {submitError}
@@ -142,13 +151,15 @@ export function PreflightDialog({
         <button
           className="button primary"
           onClick={onSubmit}
-          disabled={busy || !preflight.canSubmit}
+          disabled={busy || !preflight.canSubmit || !deploymentReady}
         >
           {busy
             ? "Reserving & submitting…"
-            : preflight.canSubmit
-              ? `Approve ${preflight.batchCount} generation${preflight.batchCount === 1 ? "" : "s"}`
-              : "Submission not permitted"}
+            : !deploymentReady
+              ? "Configure server credentials"
+              : preflight.canSubmit
+                ? `Approve ${preflight.batchCount} generation${preflight.batchCount === 1 ? "" : "s"}`
+                : "Submission not permitted"}
         </button>
       </div>
     </dialog>

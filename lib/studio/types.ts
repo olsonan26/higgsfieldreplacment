@@ -42,6 +42,7 @@ export type StudioProjectDraft = {
 };
 export type StudioInitialData = {
   user: { id: string; displayName: string };
+  deploymentReady: boolean;
   workspaces: StudioWorkspace[];
   activeWorkspace: StudioWorkspace;
   projects: StudioProject[];

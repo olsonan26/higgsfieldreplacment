@@ -2,6 +2,7 @@ import "server-only";
 
 import { redirect } from "next/navigation";
 import { requireAuthenticatedUser } from "@/lib/auth";
+import { getOptionalServerReadiness } from "@/lib/env";
 import {
   MODEL_CAPABILITIES,
   publicCapability,
@@ -11,6 +12,9 @@ export async function loadStudioInitialData(
   requestedWorkspaceId?: string,
   requestedProjectId?: string,
 ) {
+  const deploymentReady = Object.values(getOptionalServerReadiness()).every(
+    Boolean,
+  );
   const { supabase, userId } = await requireAuthenticatedUser();
   const { data: memberships, error: membershipError } = await supabase
     .from("workspace_memberships")
@@ -68,6 +72,7 @@ export async function loadStudioInitialData(
       id: userId,
       displayName: profile?.display_name || "VesperFrame creator",
     },
+    deploymentReady,
     workspaces,
     activeWorkspace: selectedWorkspace,
     projects: projects || [],

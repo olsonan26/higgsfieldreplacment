@@ -127,6 +127,7 @@ export function StudioShell({ initial }: { initial: StudioInitialData }) {
           }}
           restoredPrompt={restoredPrompt}
           initialDraft={initial.projectSettings?.settings || null}
+          deploymentReady={initial.deploymentReady}
           onQueue={() => setView("queue")}
           onExplore={() => setView("explore")}
         />
@@ -266,11 +267,19 @@ export function StudioShell({ initial }: { initial: StudioInitialData }) {
             <CircleDollarSign /> Credits
           </button>
           <button
-            className={workspace.generationAllowed ? "access-ready" : ""}
+            className={
+              workspace.generationAllowed && initial.deploymentReady
+                ? "access-ready"
+                : ""
+            }
             onClick={() => navigate("settings")}
           >
             <span />
-            {workspace.generationAllowed ? "Generation ready" : "View only"}
+            {!workspace.generationAllowed
+              ? "View only"
+              : initial.deploymentReady
+                ? "Generation ready"
+                : "Setup required"}
           </button>
           <button
             className="settings-button"

@@ -48,6 +48,16 @@ export async function loadStudioInitialData(
     (projects || []).find((project) => project.id === requestedProjectId) ||
     projects?.[0] ||
     null;
+  const { data: projectSettings } = selectedProject
+    ? await supabase
+        .from("project_settings")
+        .select("version, settings")
+        .eq("workspace_id", selectedWorkspace.id)
+        .eq("project_id", selectedProject.id)
+        .order("version", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null };
   const { data: profile } = await supabase
     .from("profiles")
     .select("display_name, avatar_path")
@@ -62,6 +72,12 @@ export async function loadStudioInitialData(
     activeWorkspace: selectedWorkspace,
     projects: projects || [],
     activeProject: selectedProject,
+    projectSettings: projectSettings
+      ? {
+          version: projectSettings.version,
+          settings: projectSettings.settings as Record<string, unknown>,
+        }
+      : null,
     capabilities: MODEL_CAPABILITIES.map(publicCapability),
   };
 }

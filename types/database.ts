@@ -1578,6 +1578,27 @@ export type Database = {
         };
         Returns: Json;
       };
+      append_project_settings: {
+        Args: {
+          settings_value: Json;
+          target_project_id: string;
+          target_workspace_id: string;
+        };
+        Returns: Json;
+      };
+      append_prompt_version: {
+        Args: {
+          capability_id_value: string;
+          compiled_prompt_value: string;
+          creative_direction_value: Json;
+          raw_prompt_value: string;
+          restored_from_value?: string;
+          target_project_id: string;
+          target_workspace_id: string;
+          technical_settings_value: Json;
+        };
+        Returns: Json;
+      };
       create_external_reference_asset: {
         Args: {
           external_id_value: string;
@@ -1608,6 +1629,21 @@ export type Database = {
           sanitized_payload_value: Json;
           source_key_value: string;
           summary_value: Json;
+          target_workspace_id: string;
+        };
+        Returns: Json;
+      };
+      record_derived_image_asset: {
+        Args: {
+          byte_size_value: number;
+          edit_recipe_value: Json;
+          mime_type_value: string;
+          original_filename_value: string;
+          safe_filename_value: string;
+          sha256_value: string;
+          source_asset_ids_value: string[];
+          storage_path_value: string;
+          target_project_id: string;
           target_workspace_id: string;
         };
         Returns: Json;

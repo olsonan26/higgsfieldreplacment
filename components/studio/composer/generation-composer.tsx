@@ -2,14 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Camera,
   Check,
   ChevronDown,
+  Clapperboard,
   FilePlus2,
   Film,
   Image as ImageIcon,
-  Info,
+  Lightbulb,
   Minus,
+  Palette,
   Plus,
+  Settings2,
   Sparkles,
   Upload,
   WandSparkles,
@@ -22,15 +26,19 @@ import {
 import { apiRequest } from "@/lib/client/api";
 import { createClient } from "@/lib/supabase/client";
 import type {
+  PromptVersion,
   PublicCapability,
   StudioProject,
+  StudioProjectDraft,
   StudioWorkspace,
 } from "@/lib/studio/types";
+import { AssetLibrary } from "@/components/studio/views/asset-library";
 
 type Settings = Record<
   string,
   string | number | boolean | Array<{ prompt: string; duration: number }>
 >;
+type TechnicalField = PublicCapability["technical"][number];
 type DraftReference = {
   assetId: string;
   role: string;
@@ -129,33 +137,110 @@ function assetRole(role: string) {
   return role;
 }
 
+function DirectionDialog({
+  title,
+  eyebrow,
+  onClose,
+  children,
+}: {
+  title: string;
+  eyebrow: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => dialog.current?.showModal(), []);
+  return (
+    <dialog
+      ref={dialog}
+      className="vf-dialog direction-dialog"
+      onClose={onClose}
+      aria-labelledby="direction-dialog-title"
+    >
+      <button
+        className="icon-button dialog-close"
+        onClick={() => dialog.current?.close()}
+        aria-label={`Close ${title}`}
+      >
+        <X />
+      </button>
+      <p className="eyebrow">{eyebrow}</p>
+      <h2 id="direction-dialog-title">{title}</h2>
+      {children}
+    </dialog>
+  );
+}
+
 export function GenerationComposer({
   workspace,
   project,
   capabilities,
+  mediaKind,
+  onMediaKindChange,
+  restoredPrompt,
+  initialDraft,
   onQueue,
+  onExplore,
 }: {
   workspace: StudioWorkspace;
   project: StudioProject;
   capabilities: PublicCapability[];
+  mediaKind: "image" | "video";
+  onMediaKindChange: (kind: "image" | "video") => void;
+  restoredPrompt: PromptVersion | null;
+  initialDraft: Record<string, unknown> | null;
   onQueue: () => void;
+  onExplore: () => void;
 }) {
-  const [mediaKind, setMediaKind] = useState<"image" | "video">("video");
   const filtered = useMemo(
     () =>
       capabilities.filter((capability) => capability.mediaKind === mediaKind),
     [capabilities, mediaKind],
   );
-  const [modelKey, setModelKey] = useState(filtered[0]?.appModelKey || "");
+  const savedDraft =
+    initialDraft?.mediaKind === mediaKind &&
+    typeof initialDraft.capabilityKey === "string" &&
+    typeof initialDraft.rawPrompt === "string"
+      ? (initialDraft as StudioProjectDraft)
+      : null;
+  const restoredCapability = restoredPrompt?.capability
+    ? capabilities.find(
+        (item) =>
+          item.appModelKey === restoredPrompt.capability?.app_model_key &&
+          item.version === restoredPrompt.capability.version &&
+          item.mediaKind === mediaKind,
+      )
+    : undefined;
+  const savedCapability = savedDraft
+    ? capabilities.find(
+        (item) =>
+          item.appModelKey === savedDraft.capabilityKey &&
+          item.mediaKind === mediaKind,
+      )
+    : undefined;
+  const [modelKey, setModelKey] = useState(
+    restoredCapability?.appModelKey ||
+      savedCapability?.appModelKey ||
+      filtered[0]?.appModelKey ||
+      "",
+  );
   const capability =
     capabilities.find(
       (item) => item.appModelKey === modelKey && item.mediaKind === mediaKind,
     ) || filtered[0];
-  const [rawPrompt, setRawPrompt] = useState("");
-  const [settings, setSettings] = useState<Settings>(() =>
-    capability ? defaults(capability) : {},
+  const [rawPrompt, setRawPrompt] = useState(
+    restoredPrompt?.raw_prompt || savedDraft?.rawPrompt || "",
   );
-  const [creative, setCreative] = useState({
+  const [settings, setSettings] = useState<Settings>(() =>
+    restoredPrompt
+      ? (restoredPrompt.technical_settings as Settings)
+      : savedDraft
+        ? (savedDraft.technicalSettings as Settings)
+        : capability
+          ? defaults(capability)
+          : {},
+  );
+  const [creative, setCreative] = useState(() => ({
     filmSetup: { genre: "General", era: "Contemporary", tempo: "Measured" },
     camera: {
       body: "Digital cinema",
@@ -165,19 +250,37 @@ export function GenerationComposer({
     },
     palette: "Natural",
     lighting: "Natural daylight",
-  });
-  const [batchCount, setBatchCount] = useState(1);
-  const [references, setReferences] = useState<DraftReference[]>([]);
+    ...(savedDraft?.creativeDirection || {}),
+    ...(restoredPrompt?.creative_direction as Record<string, unknown>),
+  }));
+  const [batchCount, setBatchCount] = useState(savedDraft?.batchCount || 1);
+  const [references, setReferences] = useState<DraftReference[]>(
+    savedDraft?.references || [],
+  );
   const [referenceRole, setReferenceRole] = useState("");
   const [elementGroup, setElementGroup] = useState("element_subject");
   const [skills, setSkills] = useState<Skill[]>([]);
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [selectedSkills, setSelectedSkills] = useState<string[]>(
+    savedDraft?.skillVersionIds || [],
+  );
   const [skillPreview, setSkillPreview] = useState<Skill | null>(null);
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(
+    restoredPrompt ? `Prompt version ${restoredPrompt.version} restored.` : "",
+  );
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [preflight, setPreflight] = useState<PreflightData | null>(null);
   const [submitError, setSubmitError] = useState("");
+  const [directionPanel, setDirectionPanel] = useState<
+    | "film"
+    | "camera"
+    | "palette"
+    | "lighting"
+    | "references"
+    | "settings"
+    | "skills"
+    | null
+  >(null);
   const [external, setExternal] = useState({
     label: "",
     id: "",
@@ -212,7 +315,7 @@ export function GenerationComposer({
 
   function selectMediaKind(nextKind: "image" | "video") {
     const next = capabilities.find((item) => item.mediaKind === nextKind);
-    setMediaKind(nextKind);
+    onMediaKindChange(nextKind);
     if (next) selectCapability(next);
   }
 
@@ -243,6 +346,48 @@ export function GenerationComposer({
       cancelled = true;
     };
   }, [workspace.id, mediaKind]);
+
+  useEffect(() => {
+    if (!capability || workspace.role === "viewer") return;
+    const timer = window.setTimeout(() => {
+      void apiRequest("/api/project-settings", {
+        method: "POST",
+        body: JSON.stringify({
+          workspaceId: workspace.id,
+          projectId: project.id,
+          settings: {
+            mediaKind,
+            capabilityKey: capability.appModelKey,
+            rawPrompt,
+            creativeDirection: creative,
+            technicalSettings: settings,
+            references,
+            skillVersionIds: selectedSkills,
+            batchCount,
+          },
+        }),
+      }).catch((caught) =>
+        setError(
+          caught instanceof Error
+            ? `Draft save failed: ${caught.message}`
+            : "Draft save failed",
+        ),
+      );
+    }, 1100);
+    return () => window.clearTimeout(timer);
+  }, [
+    batchCount,
+    capability,
+    creative,
+    mediaKind,
+    project.id,
+    rawPrompt,
+    references,
+    selectedSkills,
+    settings,
+    workspace.id,
+    workspace.role,
+  ]);
 
   if (!capability)
     return (
@@ -297,6 +442,22 @@ export function GenerationComposer({
         "/api/generations/preflight",
         { method: "POST", body: JSON.stringify(draft()) },
       );
+      if (workspace.role !== "viewer") {
+        await apiRequest("/api/prompt-versions", {
+          method: "POST",
+          body: JSON.stringify({
+            action: "save",
+            workspaceId: workspace.id,
+            projectId: project.id,
+            rawPrompt,
+            compiledPrompt: result.compiledPrompt,
+            creativeDirection: creative,
+            technicalSettings: result.effectiveSettings,
+            capabilityKey: capability.appModelKey,
+            capabilityVersion: capability.version,
+          }),
+        });
+      }
       setPreflight(result);
       idempotency.current = `vf:${crypto.randomUUID()}`;
     } catch (caught) {
@@ -469,184 +630,487 @@ export function GenerationComposer({
   }
 
   const promptMax = capability.prompt.maximum || 20_000;
-  return (
-    <section className="composer" aria-labelledby="composer-title">
-      <header className="view-heading">
-        <div>
-          <p className="eyebrow">{project.name.toUpperCase()}</p>
-          <h1 id="composer-title">Direct the impossible.</h1>
-          <p>
-            Every enabled control is compiled or mapped by the selected verified
-            model contract.
-          </p>
-        </div>
-        <span className="contract-badge">
-          <Check /> Capability v{capability.version}
-        </span>
-      </header>
-      <div className="mode-row" role="group" aria-label="Generation media type">
-        <button
-          className={mediaKind === "image" ? "active" : ""}
-          onClick={() => selectMediaKind("image")}
-          data-testid="composer-media-mode-image"
-        >
-          <ImageIcon /> Image
-        </button>
-        <button
-          className={mediaKind === "video" ? "active" : ""}
-          onClick={() => selectMediaKind("video")}
-          data-testid="composer-media-mode-video"
-        >
-          <Film /> Video
-        </button>
-        <label className="model-select">
-          <span>Model</span>
+  function renderTechnicalField(field: TechnicalField, compact = false) {
+    const value = settings[field.key] ?? "";
+    const className = compact ? "compact-technical-field" : "field";
+    if (field.kind === "enum")
+      return (
+        <label className={className} key={field.key}>
+          <span>{field.label}</span>
           <select
-            value={capability.appModelKey}
-            onChange={(event) => {
-              const next = capabilities.find(
-                (item) => item.appModelKey === event.target.value,
-              );
-              if (next) selectCapability(next);
-            }}
-            data-testid="composer-model-picker"
+            value={String(value)}
+            aria-label={field.label + (field.help ? " " + field.help : "")}
+            onChange={(event) =>
+              setSettings((current) => ({
+                ...current,
+                [field.key]:
+                  field.values?.find(
+                    (item) => String(item) === event.target.value,
+                  ) ?? event.target.value,
+              }))
+            }
           >
-            {filtered.map((item) => (
-              <option key={item.appModelKey} value={item.appModelKey}>
-                {item.displayName} · {item.modelMaker}
-              </option>
-            ))}
+            {field.values?.map((option) => {
+              const reason = invalidOptionReason(
+                capability,
+                settings,
+                field.key,
+                option,
+              );
+              return (
+                <option
+                  key={String(option)}
+                  value={String(option)}
+                  disabled={Boolean(reason)}
+                >
+                  {String(option)}
+                  {reason ? " — unavailable" : ""}
+                </option>
+              );
+            })}
           </select>
-          <ChevronDown />
+          {!compact && <small>{field.help}</small>}
         </label>
-      </div>
-      <div className="composer-grid">
-        <div className="composer-primary">
-          <section className="panel prompt-panel">
-            <div className="panel-title">
-              <span>
-                <Sparkles /> Scene prompt
-              </span>
-              <small>
-                {rawPrompt.length}/{promptMax}
-              </small>
-            </div>
+      );
+    if (field.kind === "boolean")
+      return (
+        <label
+          className={compact ? "compact-toggle-field" : "toggle-field"}
+          key={field.key}
+        >
+          <span>
+            <b>{field.label}</b>
+            {!compact && <small>{field.help}</small>}
+          </span>
+          <input
+            type="checkbox"
+            checked={Boolean(value)}
+            onChange={(event) =>
+              setSettings((current) => ({
+                ...current,
+                [field.key]: event.target.checked,
+              }))
+            }
+          />
+        </label>
+      );
+    if (field.kind === "integer")
+      return (
+        <label className={className} key={field.key}>
+          <span>{field.label}</span>
+          <input
+            type="number"
+            value={Number(value)}
+            min={field.minimum}
+            max={field.maximum}
+            step={field.step || 1}
+            onChange={(event) =>
+              setSettings((current) => ({
+                ...current,
+                [field.key]: Number(event.target.value),
+              }))
+            }
+          />
+          {!compact && <small>{field.help}</small>}
+        </label>
+      );
+    return (
+      <label className={className} key={field.key}>
+        <span>{field.label}</span>
+        <input
+          value={String(value)}
+          maxLength={field.maxLength}
+          onChange={(event) =>
+            setSettings((current) => ({
+              ...current,
+              [field.key]: event.target.value,
+            }))
+          }
+        />
+        {!compact && <small>{field.help}</small>}
+      </label>
+    );
+  }
+
+  return (
+    <section
+      className="composer cinematic-composer"
+      aria-labelledby="composer-title"
+    >
+      <section
+        className="cinematic-hero"
+        aria-label="VesperFrame production mood board"
+      >
+        <div className="poster-stack" aria-hidden="true">
+          <div
+            className="poster side left"
+            style={{
+              backgroundImage:
+                "url(https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=900&q=85)",
+            }}
+          >
+            <span>AFTER HOURS</span>
+          </div>
+          <div
+            className="poster center"
+            style={{
+              backgroundImage:
+                "url(https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=900&q=85)",
+            }}
+          >
+            <span>VESPERFRAME ORIGINAL</span>
+            <strong>NIGHT DRIVE</strong>
+          </div>
+          <div
+            className="poster side right"
+            style={{
+              backgroundImage:
+                "url(https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=900&q=85)",
+            }}
+          >
+            <span>ZEPHYR</span>
+          </div>
+        </div>
+        <p className="eyebrow">
+          {project.name.toUpperCase()} · PRIVATE MOOD BOARD
+        </p>
+        <h1 id="composer-title">BRING YOUR STORIES TO LIFE</h1>
+        <p>
+          Direct every detail. Choose a verified model. Keep the references,
+          versions, outputs, and receipts.
+        </p>
+      </section>
+
+      <section className="production-composer" aria-label="Generation composer">
+        <div className="direction-toolbar">
+          <button
+            className="reference-count-button"
+            onClick={() => setDirectionPanel("references")}
+            data-testid="reference-add"
+          >
+            <Plus />
+            <span>
+              <small>REFERENCES</small>
+              <strong>
+                {references.length}/
+                {capability.combinedMediaQuota?.limit ??
+                  capability.references.reduce(
+                    (total, reference) => total + reference.maximum,
+                    0,
+                  )}
+              </strong>
+            </span>
+          </button>
+          <button
+            onClick={() => setDirectionPanel("film")}
+            data-testid="creative-film"
+          >
+            <Clapperboard />
+            <span>
+              <small>FILM SETUP</small>
+              <strong>{creative.filmSetup.genre}</strong>
+            </span>
+          </button>
+          <button
+            onClick={() => setDirectionPanel("camera")}
+            data-testid="creative-camera"
+          >
+            <Camera />
+            <span>
+              <small>CAMERA</small>
+              <strong>{creative.camera.movement}</strong>
+            </span>
+          </button>
+          <button
+            onClick={() => setDirectionPanel("palette")}
+            data-testid="creative-palette"
+          >
+            <Palette />
+            <span>
+              <small>COLOR PALETTE</small>
+              <strong>{creative.palette}</strong>
+            </span>
+          </button>
+          <button
+            onClick={() => setDirectionPanel("lighting")}
+            data-testid="creative-lighting"
+          >
+            <Lightbulb />
+            <span>
+              <small>LIGHTING</small>
+              <strong>{creative.lighting}</strong>
+            </span>
+          </button>
+        </div>
+
+        <div className="prompt-workspace">
+          <div
+            className="media-rail"
+            role="group"
+            aria-label="Generation media type"
+          >
+            <button
+              className={mediaKind === "image" ? "active" : ""}
+              onClick={() => selectMediaKind("image")}
+              data-testid="composer-media-mode-image"
+            >
+              <ImageIcon />
+              <span>Image</span>
+            </button>
+            <button
+              className={mediaKind === "video" ? "active" : ""}
+              onClick={() => selectMediaKind("video")}
+              data-testid="composer-media-mode-video"
+            >
+              <Film />
+              <span>Video</span>
+            </button>
+          </div>
+          <div className="prompt-canvas">
+            <label className="sr-only" htmlFor="scene-prompt">
+              Scene prompt
+            </label>
             <textarea
+              id="scene-prompt"
               value={rawPrompt}
-              onChange={(event) => {
-                setRawPrompt(event.target.value);
-                setPreflight(null);
-                idempotency.current = "";
-              }}
+              onChange={(event) => setRawPrompt(event.target.value)}
               maxLength={promptMax}
-              placeholder="Describe the scene, subject, action, composition, and constraints…"
+              placeholder="Describe your scene — use references and direct every detail"
               data-testid="composer-raw-prompt"
             />
-            <div className="prompt-actions">
-              <button
-                className="button subtle"
-                onClick={runPreflight}
-                disabled={busy || !rawPrompt.trim()}
-                data-testid="prompt-compile-preview"
-              >
-                <WandSparkles /> Compile preview
-              </button>
-              <span>Non-destructive: your raw prompt stays unchanged.</span>
-            </div>
-          </section>
-          <section className="panel creative-panel">
-            <div className="panel-title">
-              <span>
-                <Film /> Creative direction
-              </span>
-              <small>Always compiled on Generate</small>
-            </div>
-            <div className="field-grid">
-              {(["genre", "era", "tempo"] as const).map((key) => (
-                <label className="field" key={key}>
-                  <span>{key}</span>
-                  <select
-                    value={creative.filmSetup[key]}
-                    onChange={(event) =>
-                      setCreative((current) => ({
-                        ...current,
-                        filmSetup: {
-                          ...current.filmSetup,
-                          [key]: event.target.value,
-                        },
-                      }))
-                    }
-                  >
-                    {creativeOptions[key].map((item) => (
-                      <option key={item}>{item}</option>
-                    ))}
-                  </select>
-                </label>
+            <span className="prompt-count">
+              {rawPrompt.length}/{promptMax}
+            </span>
+            <button
+              className="refine-button"
+              onClick={runPreflight}
+              disabled={busy || !rawPrompt.trim()}
+              data-testid="prompt-compile-preview"
+            >
+              <WandSparkles /> Refine
+            </button>
+          </div>
+          <button
+            className="cinematic-generate"
+            onClick={runPreflight}
+            disabled={
+              busy ||
+              !rawPrompt.trim() ||
+              workspace.role === "viewer" ||
+              !workspace.generationAllowed
+            }
+            data-testid="generation-preflight"
+          >
+            <span>{busy ? "VALIDATING" : "GENERATE"}</span>
+            <small>
+              <Sparkles /> Review before spend
+            </small>
+          </button>
+        </div>
+
+        <div className="composer-control-strip">
+          <button
+            className="control-add"
+            onClick={() => setDirectionPanel("references")}
+            aria-label="Add reference"
+          >
+            <Plus />
+          </button>
+          <label className="compact-model-field">
+            <Sparkles />
+            <span className="sr-only">Model</span>
+            <select
+              value={capability.appModelKey}
+              onChange={(event) => {
+                const next = capabilities.find(
+                  (item) => item.appModelKey === event.target.value,
+                );
+                if (next) selectCapability(next);
+              }}
+              data-testid="composer-model-picker"
+            >
+              {filtered.map((item) => (
+                <option key={item.appModelKey} value={item.appModelKey}>
+                  {item.displayName}
+                </option>
               ))}
-              {(["body", "lens", "aperture", "movement"] as const).map(
-                (key) => (
-                  <label className="field" key={key}>
-                    <span>{key}</span>
-                    <select
-                      value={creative.camera[key]}
-                      onChange={(event) =>
-                        setCreative((current) => ({
-                          ...current,
-                          camera: {
-                            ...current.camera,
-                            [key]: event.target.value,
-                          },
-                        }))
-                      }
-                    >
-                      {creativeOptions[key].map((item) => (
-                        <option key={item}>{item}</option>
-                      ))}
-                    </select>
-                  </label>
-                ),
-              )}
-              <label className="field">
-                <span>Palette</span>
+            </select>
+            <ChevronDown />
+          </label>
+          {capability.technical
+            .slice(0, 4)
+            .map((field) => renderTechnicalField(field, true))}
+          {capability.technical.length > 4 && (
+            <button
+              className="more-settings-button"
+              onClick={() => setDirectionPanel("settings")}
+            >
+              <Settings2 />
+              <span>All settings</span>
+            </button>
+          )}
+          <button
+            className="skills-control"
+            onClick={() => setDirectionPanel("skills")}
+            data-testid="skill-selector"
+          >
+            <FilePlus2 />
+            <span>
+              {selectedSkills.length
+                ? selectedSkills.length + " skills"
+                : "Skills"}
+            </span>
+          </button>
+          <div className="compact-batch" data-testid="batch-count">
+            <button
+              onClick={() => setBatchCount((value) => Math.max(1, value - 1))}
+              disabled={batchCount <= 1}
+              aria-label="Decrease batch"
+            >
+              <Minus />
+            </button>
+            <span>{batchCount}/4</span>
+            <button
+              onClick={() => setBatchCount((value) => Math.min(4, value + 1))}
+              disabled={batchCount >= 4}
+              aria-label="Increase batch"
+            >
+              <Plus />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <AssetLibrary
+        workspace={workspace}
+        project={project}
+        variant="compact"
+        limit={8}
+        onExplore={onExplore}
+      />
+
+      {directionPanel === "film" && (
+        <DirectionDialog
+          title="Film setup"
+          eyebrow="CREATIVE DIRECTION · ALWAYS COMPILED"
+          onClose={() => setDirectionPanel(null)}
+        >
+          <div className="direction-fields">
+            {(["genre", "era", "tempo"] as const).map((key) => (
+              <label className="field" key={key}>
+                <span>{key}</span>
                 <select
-                  value={creative.palette}
+                  value={creative.filmSetup[key]}
                   onChange={(event) =>
                     setCreative((current) => ({
                       ...current,
-                      palette: event.target.value,
+                      filmSetup: {
+                        ...current.filmSetup,
+                        [key]: event.target.value,
+                      },
                     }))
                   }
                 >
-                  {creativeOptions.palette.map((item) => (
+                  {creativeOptions[key].map((item) => (
                     <option key={item}>{item}</option>
                   ))}
                 </select>
               </label>
-              <label className="field">
-                <span>Lighting</span>
+            ))}
+          </div>
+          <p className="direction-note">
+            These choices are compiled automatically on Refine and Generate.
+          </p>
+        </DirectionDialog>
+      )}
+      {directionPanel === "camera" && (
+        <DirectionDialog
+          title="Camera"
+          eyebrow="CAMERA SYSTEM · ALWAYS COMPILED"
+          onClose={() => setDirectionPanel(null)}
+        >
+          <div className="direction-fields camera-fields">
+            {(["body", "lens", "aperture", "movement"] as const).map((key) => (
+              <label className="field" key={key}>
+                <span>{key}</span>
                 <select
-                  value={creative.lighting}
+                  value={creative.camera[key]}
                   onChange={(event) =>
                     setCreative((current) => ({
                       ...current,
-                      lighting: event.target.value,
+                      camera: {
+                        ...current.camera,
+                        [key]: event.target.value,
+                      },
                     }))
                   }
                 >
-                  {creativeOptions.lighting.map((item) => (
+                  {creativeOptions[key].map((item) => (
                     <option key={item}>{item}</option>
                   ))}
                 </select>
               </label>
-            </div>
-          </section>
-          <section className="panel reference-panel">
-            <div className="panel-title">
-              <span>
-                <FilePlus2 /> References
-              </span>
-              <small>{references.length} attached</small>
-            </div>
+            ))}
+          </div>
+          <p className="direction-note">
+            The selected body, lens, aperture, and movement are included once in
+            the deterministic compiled prompt.
+          </p>
+        </DirectionDialog>
+      )}
+      {directionPanel === "palette" && (
+        <DirectionDialog
+          title="Color palette"
+          eyebrow="COLOR DIRECTION · ALWAYS COMPILED"
+          onClose={() => setDirectionPanel(null)}
+        >
+          <div className="cinematic-choice-grid">
+            {creativeOptions.palette.map((item) => (
+              <button
+                key={item}
+                className={creative.palette === item ? "active" : ""}
+                onClick={() =>
+                  setCreative((current) => ({ ...current, palette: item }))
+                }
+              >
+                <Palette />
+                <strong>{item}</strong>
+                {creative.palette === item && <Check />}
+              </button>
+            ))}
+          </div>
+        </DirectionDialog>
+      )}
+      {directionPanel === "lighting" && (
+        <DirectionDialog
+          title="Lighting"
+          eyebrow="LIGHTING DIRECTION · ALWAYS COMPILED"
+          onClose={() => setDirectionPanel(null)}
+        >
+          <div className="cinematic-choice-grid">
+            {creativeOptions.lighting.map((item) => (
+              <button
+                key={item}
+                className={creative.lighting === item ? "active" : ""}
+                onClick={() =>
+                  setCreative((current) => ({ ...current, lighting: item }))
+                }
+              >
+                <Lightbulb />
+                <strong>{item}</strong>
+                {creative.lighting === item && <Check />}
+              </button>
+            ))}
+          </div>
+        </DirectionDialog>
+      )}
+      {directionPanel === "references" && (
+        <DirectionDialog
+          title="Add references"
+          eyebrow="PRIVATE INPUTS · CAPABILITY-AWARE"
+          onClose={() => setDirectionPanel(null)}
+        >
+          <div className="reference-dialog-content">
             {uploadSpecs.length ? (
               <div className="reference-add-row">
                 <label className="field">
@@ -654,6 +1118,7 @@ export function GenerationComposer({
                   <select
                     value={referenceRole}
                     onChange={(event) => setReferenceRole(event.target.value)}
+                    data-testid="reference-role"
                   >
                     {uploadSpecs.map((spec) => (
                       <option key={spec.role} value={spec.role}>
@@ -674,11 +1139,11 @@ export function GenerationComposer({
                   </label>
                 )}
                 <button
-                  className="button secondary"
+                  className="button primary"
                   onClick={() => fileInput.current?.click()}
                   disabled={busy}
                 >
-                  <Upload /> Add file
+                  <Upload /> Choose file
                 </button>
                 <input
                   ref={fileInput}
@@ -695,7 +1160,8 @@ export function GenerationComposer({
               </div>
             ) : (
               <p className="muted">
-                This model contract does not accept uploaded references.
+                This verified model contract does not accept uploaded
+                references.
               </p>
             )}
             {externalSpecs.length > 0 && (
@@ -753,7 +1219,7 @@ export function GenerationComposer({
             )}
             <div className="reference-list">
               {references.map((reference, index) => (
-                <span key={`${reference.assetId}-${reference.role}`}>
+                <span key={reference.assetId + "-" + reference.role}>
                   <b>
                     {reference.fileName ||
                       reference.label ||
@@ -761,7 +1227,7 @@ export function GenerationComposer({
                   </b>
                   <small>
                     {reference.role}
-                    {reference.groupId ? ` · ${reference.groupId}` : ""}
+                    {reference.groupId ? " · " + reference.groupId : ""}
                   </small>
                   <button
                     onClick={() =>
@@ -769,302 +1235,162 @@ export function GenerationComposer({
                         current.filter((_, itemIndex) => itemIndex !== index),
                       )
                     }
-                    aria-label={`Remove ${reference.fileName || reference.role}`}
+                    aria-label={
+                      "Remove " + (reference.fileName || reference.role)
+                    }
                   >
                     <X />
                   </button>
                 </span>
               ))}
             </div>
-          </section>
-        </div>
-        <aside className="composer-aside">
-          <section className="panel settings-panel">
-            <div className="panel-title">
-              <span>Effective controls</span>
-              <Info />
-            </div>
-            {capability.technical.map((field) => {
-              const value = settings[field.key] ?? "";
-              if (field.kind === "enum")
-                return (
-                  <label className="field" key={field.key}>
-                    <span>{field.label}</span>
-                    <select
-                      value={String(value)}
-                      onChange={(event) =>
-                        setSettings((current) => ({
-                          ...current,
-                          [field.key]:
-                            field.values?.find(
-                              (item) => String(item) === event.target.value,
-                            ) ?? event.target.value,
-                        }))
-                      }
-                    >
-                      {field.values?.map((option) => {
-                        const reason = invalidOptionReason(
-                          capability,
-                          settings,
-                          field.key,
-                          option,
-                        );
-                        return (
-                          <option
-                            key={String(option)}
-                            value={String(option)}
-                            disabled={Boolean(reason)}
-                          >
-                            {String(option)}
-                            {reason ? " — unavailable" : ""}
-                          </option>
-                        );
-                      })}
-                    </select>
-                    <small>{field.help}</small>
-                  </label>
-                );
-              if (field.kind === "boolean")
-                return (
-                  <label className="toggle-field" key={field.key}>
-                    <span>
-                      <b>{field.label}</b>
-                      <small>{field.help}</small>
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(value)}
-                      onChange={(event) =>
-                        setSettings((current) => ({
-                          ...current,
-                          [field.key]: event.target.checked,
-                        }))
-                      }
-                    />
-                  </label>
-                );
-              if (field.kind === "integer")
-                return (
-                  <label className="field" key={field.key}>
-                    <span>{field.label}</span>
-                    <input
-                      type="number"
-                      value={Number(value)}
-                      min={field.minimum}
-                      max={field.maximum}
-                      step={field.step || 1}
-                      onChange={(event) =>
-                        setSettings((current) => ({
-                          ...current,
-                          [field.key]: Number(event.target.value),
-                        }))
-                      }
-                    />
-                    <small>{field.help}</small>
-                  </label>
-                );
-              return (
-                <label className="field" key={field.key}>
-                  <span>{field.label}</span>
-                  <input
-                    value={String(value)}
-                    maxLength={field.maxLength}
-                    onChange={(event) =>
+          </div>
+        </DirectionDialog>
+      )}
+      {directionPanel === "settings" && (
+        <DirectionDialog
+          title="Exact model settings"
+          eyebrow={"VERIFIED CONTRACT · V" + capability.version}
+          onClose={() => setDirectionPanel(null)}
+        >
+          <div className="direction-fields technical-dialog-fields">
+            {capability.technical.map((field) => renderTechnicalField(field))}
+          </div>
+          {settings.multiShots === true && capability.multiShot && (
+            <div className="shot-editor">
+              <b>Shot prompts</b>
+              {(
+                (settings.multiPrompt as Array<{
+                  prompt: string;
+                  duration: number;
+                }>) || [{ prompt: "", duration: 3 }]
+              ).map((shot, index, shots) => (
+                <div key={index}>
+                  <textarea
+                    value={shot.prompt}
+                    maxLength={capability.multiShot!.promptMaxLength}
+                    placeholder={"Shot " + (index + 1)}
+                    onChange={(event) => {
+                      const next = [...shots];
+                      next[index] = { ...shot, prompt: event.target.value };
                       setSettings((current) => ({
                         ...current,
-                        [field.key]: event.target.value,
-                      }))
-                    }
+                        multiPrompt: next,
+                      }));
+                    }}
                   />
-                  <small>{field.help}</small>
+                  <input
+                    type="number"
+                    value={shot.duration}
+                    min={capability.multiShot!.shotDurationMinimum}
+                    max={capability.multiShot!.shotDurationMaximum}
+                    onChange={(event) => {
+                      const next = [...shots];
+                      next[index] = {
+                        ...shot,
+                        duration: Number(event.target.value),
+                      };
+                      setSettings((current) => ({
+                        ...current,
+                        multiPrompt: next,
+                      }));
+                    }}
+                  />
+                </div>
+              ))}
+              <button
+                className="button subtle"
+                onClick={() => {
+                  const shots =
+                    (settings.multiPrompt as Array<{
+                      prompt: string;
+                      duration: number;
+                    }>) || [];
+                  setSettings((current) => ({
+                    ...current,
+                    multiPrompt: [...shots, { prompt: "", duration: 3 }],
+                  }));
+                }}
+                disabled={
+                  ((settings.multiPrompt as unknown[]) || []).length >=
+                  capability.multiShot.maximumShots
+                }
+              >
+                <Plus /> Add shot
+              </button>
+            </div>
+          )}
+        </DirectionDialog>
+      )}
+      {directionPanel === "skills" && (
+        <DirectionDialog
+          title="Generation Skills"
+          eyebrow="OPTIONAL · HASH-VERIFIED MARKDOWN"
+          onClose={() => setDirectionPanel(null)}
+        >
+          <p className="direction-note">
+            Selected skill text is attached once to every compiled prompt. It
+            cannot execute code or change application permissions.
+          </p>
+          <div className="skill-dialog-list">
+            {skills.length ? (
+              skills.map((skill) => (
+                <label key={skill.id}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(
+                      skill.activeVersion &&
+                        selectedSkills.includes(skill.activeVersion.id),
+                    )}
+                    disabled={
+                      !skill.activeVersion ||
+                      (!selectedSkills.includes(skill.activeVersion.id) &&
+                        selectedSkills.length >= 5)
+                    }
+                    onChange={(event) => {
+                      const id = skill.activeVersion!.id;
+                      setSelectedSkills((current) =>
+                        event.target.checked
+                          ? [...current, id]
+                          : current.filter((item) => item !== id),
+                      );
+                    }}
+                  />
+                  <span>
+                    <b>{skill.name}</b>
+                    <small>
+                      v{skill.activeVersion?.version} · {skill.media_scope}
+                    </small>
+                  </span>
+                  <button type="button" onClick={() => setSkillPreview(skill)}>
+                    Preview
+                  </button>
                 </label>
-              );
-            })}
-            {settings.multiShots === true && capability.multiShot && (
-              <div className="shot-editor">
-                <b>Shot prompts</b>
-                {(
-                  (settings.multiPrompt as Array<{
-                    prompt: string;
-                    duration: number;
-                  }>) || [{ prompt: "", duration: 3 }]
-                ).map((shot, index, shots) => (
-                  <div key={index}>
-                    <textarea
-                      value={shot.prompt}
-                      maxLength={capability.multiShot!.promptMaxLength}
-                      placeholder={`Shot ${index + 1}`}
-                      onChange={(event) => {
-                        const next = [...shots];
-                        next[index] = { ...shot, prompt: event.target.value };
-                        setSettings((current) => ({
-                          ...current,
-                          multiPrompt: next,
-                        }));
-                      }}
-                    />
-                    <input
-                      type="number"
-                      value={shot.duration}
-                      min={capability.multiShot!.shotDurationMinimum}
-                      max={capability.multiShot!.shotDurationMaximum}
-                      onChange={(event) => {
-                        const next = [...shots];
-                        next[index] = {
-                          ...shot,
-                          duration: Number(event.target.value),
-                        };
-                        setSettings((current) => ({
-                          ...current,
-                          multiPrompt: next,
-                        }));
-                      }}
-                    />
-                  </div>
-                ))}
-                <button
-                  className="button subtle"
-                  onClick={() => {
-                    const shots =
-                      (settings.multiPrompt as Array<{
-                        prompt: string;
-                        duration: number;
-                      }>) || [];
-                    setSettings((current) => ({
-                      ...current,
-                      multiPrompt: [...shots, { prompt: "", duration: 3 }],
-                    }));
-                  }}
-                  disabled={
-                    ((settings.multiPrompt as unknown[]) || []).length >=
-                    capability.multiShot.maximumShots
-                  }
-                >
-                  <Plus /> Add shot
-                </button>
-              </div>
+              ))
+            ) : (
+              <p>No skills uploaded for this media type.</p>
             )}
-          </section>
-          <section className="panel skills-panel">
-            <div className="panel-title">
-              <span>
-                <Sparkles /> Generation Skills
-              </span>
-              <small>Optional</small>
-            </div>
-            <p>
-              Selected Markdown is hash-verified and attached verbatim to every
-              compiled prompt.
-            </p>
-            <details className="skill-selector">
-              <summary>
-                {selectedSkills.length
-                  ? `${selectedSkills.length} selected`
-                  : "Choose skills"}
-                <ChevronDown />
-              </summary>
-              <div>
-                {skills.length ? (
-                  skills.map((skill) => (
-                    <label key={skill.id}>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(
-                          skill.activeVersion &&
-                            selectedSkills.includes(skill.activeVersion.id),
-                        )}
-                        disabled={!skill.activeVersion}
-                        onChange={(event) => {
-                          const id = skill.activeVersion!.id;
-                          setSelectedSkills((current) =>
-                            event.target.checked
-                              ? [...current, id]
-                              : current.filter((item) => item !== id),
-                          );
-                        }}
-                      />
-                      <span>
-                        <b>{skill.name}</b>
-                        <small>
-                          v{skill.activeVersion?.version} · {skill.media_scope}
-                        </small>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setSkillPreview(skill)}
-                      >
-                        Preview
-                      </button>
-                    </label>
-                  ))
-                ) : (
-                  <p>No skills uploaded for this media type.</p>
-                )}
-              </div>
-            </details>
-            <button
-              className="button secondary full"
-              onClick={() => skillInput.current?.click()}
-              disabled={busy}
-            >
-              <FilePlus2 /> Upload .md skill
-            </button>
-            <input
-              ref={skillInput}
-              className="sr-only"
-              type="file"
-              accept=".md,text/markdown,text/plain"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void uploadSkill(file);
-              }}
-            />
-            <small>
-              Skill content never executes and cannot alter app permissions or
-              safety controls.
-            </small>
-          </section>
-          <section className="panel submit-panel">
-            <div className="batch-control">
-              <span>
-                <b>Batch count</b>
-                <small>Server quota is checked before spend.</small>
-              </span>
-              <button
-                onClick={() => setBatchCount((value) => Math.max(1, value - 1))}
-                disabled={batchCount <= 1}
-              >
-                <Minus />
-              </button>
-              <b>{batchCount}</b>
-              <button
-                onClick={() => setBatchCount((value) => Math.min(4, value + 1))}
-                disabled={batchCount >= 4}
-              >
-                <Plus />
-              </button>
-            </div>
-            <button
-              className="generate-button"
-              onClick={runPreflight}
-              disabled={
-                busy ||
-                !rawPrompt.trim() ||
-                workspace.role === "viewer" ||
-                !workspace.generationAllowed
-              }
-            >
-              {busy ? "Validating…" : "Generate"}
-              <Sparkles />
-            </button>
-            <small>
-              {workspace.role === "viewer"
-                ? "Viewers cannot spend."
-                : "Preflight opens before any spend."}
-            </small>
-          </section>
-        </aside>
-      </div>
+          </div>
+          <button
+            className="button secondary"
+            onClick={() => skillInput.current?.click()}
+            disabled={busy}
+            data-testid="skill-upload"
+          >
+            <FilePlus2 /> Upload .md skill
+          </button>
+          <input
+            ref={skillInput}
+            className="sr-only"
+            type="file"
+            accept=".md,text/markdown,text/plain"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void uploadSkill(file);
+            }}
+          />
+        </DirectionDialog>
+      )}
       {(error || status) && (
         <div
           className={error ? "toast error" : "toast"}

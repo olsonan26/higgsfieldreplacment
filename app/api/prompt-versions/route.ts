@@ -40,6 +40,19 @@ const restoreSchema = querySchema
   })
   .strict();
 
+function capabilityDisplayName(appModelKey: string, manifest: Json) {
+  if (
+    manifest &&
+    typeof manifest === "object" &&
+    !Array.isArray(manifest) &&
+    typeof manifest.displayName === "string" &&
+    manifest.displayName.trim()
+  ) {
+    return manifest.displayName;
+  }
+  return appModelKey;
+}
+
 export async function GET(request: Request) {
   const requestId = correlationId(request);
   try {
@@ -52,7 +65,7 @@ export async function GET(request: Request) {
     const { data, error } = await supabase
       .from("prompt_versions")
       .select(
-        "id, version, raw_prompt, compiled_prompt, creative_direction, technical_settings, restored_from_id, created_at, model_capability_id, capability:model_capabilities(app_model_key, display_name, media_kind, version)",
+        "id, version, raw_prompt, compiled_prompt, creative_direction, technical_settings, restored_from_id, created_at, model_capability_id",
       )
       .eq("workspace_id", query.workspaceId)
       .eq("project_id", query.projectId)
@@ -64,8 +77,56 @@ export async function GET(request: Request) {
         "PromptVersionReadFailed",
         "Prompt versions could not be loaded",
       );
+
+    const capabilityIds = [
+      ...new Set(
+        (data ?? [])
+          .map((version) => version.model_capability_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const capabilityById = new Map<
+      string,
+      {
+        app_model_key: string;
+        display_name: string;
+        media_kind: string;
+        version: number;
+      }
+    >();
+    if (capabilityIds.length) {
+      const { data: capabilities, error: capabilityError } = await supabase
+        .from("model_capabilities")
+        .select("id, app_model_key, manifest, media_kind, version")
+        .in("id", capabilityIds);
+      if (capabilityError)
+        throw new HttpError(
+          500,
+          "PromptCapabilityReadFailed",
+          "Prompt versions could not be loaded",
+        );
+      for (const capability of capabilities ?? []) {
+        capabilityById.set(capability.id, {
+          app_model_key: capability.app_model_key,
+          display_name: capabilityDisplayName(
+            capability.app_model_key,
+            capability.manifest,
+          ),
+          media_kind: capability.media_kind,
+          version: capability.version,
+        });
+      }
+    }
+
     return NextResponse.json(
-      { versions: data },
+      {
+        versions: (data ?? []).map((version) => ({
+          ...version,
+          capability: version.model_capability_id
+            ? (capabilityById.get(version.model_capability_id) ?? null)
+            : null,
+        })),
+      },
       { headers: { "Cache-Control": "no-store", "x-request-id": requestId } },
     );
   } catch (error) {
@@ -89,7 +150,7 @@ export async function POST(request: Request) {
       const { data: source, error: sourceError } = await supabase
         .from("prompt_versions")
         .select(
-          "id, raw_prompt, compiled_prompt, creative_direction, technical_settings, model_capability_id, capability:model_capabilities(app_model_key, display_name, media_kind, version)",
+          "id, raw_prompt, compiled_prompt, creative_direction, technical_settings, model_capability_id",
         )
         .eq("workspace_id", body.workspaceId)
         .eq("project_id", body.projectId)
@@ -102,6 +163,18 @@ export async function POST(request: Request) {
           "Prompt version was not found",
         );
       if (!source.model_capability_id)
+        throw new HttpError(
+          422,
+          "PromptCapabilityMissing",
+          "This historical prompt has no verified model contract",
+        );
+      const { data: capability, error: capabilityError } = await supabase
+        .from("model_capabilities")
+        .select("app_model_key, manifest, media_kind, version")
+        .eq("id", source.model_capability_id)
+        .eq("enabled", true)
+        .single();
+      if (capabilityError || !capability)
         throw new HttpError(
           422,
           "PromptCapabilityMissing",
@@ -130,6 +203,15 @@ export async function POST(request: Request) {
         {
           restored: {
             ...source,
+            capability: {
+              app_model_key: capability.app_model_key,
+              display_name: capabilityDisplayName(
+                capability.app_model_key,
+                capability.manifest,
+              ),
+              media_kind: capability.media_kind,
+              version: capability.version,
+            },
             id: String((appended as Record<string, unknown>).id),
             version: Number((appended as Record<string, unknown>).version),
             restored_from_id: source.id,

@@ -31,10 +31,13 @@ export function verifyProviderWebhookSignature(
   request: Request,
 ) {
   const timestamp = request.headers.get("x-webhook-timestamp") || "";
-  const signature = (request.headers.get("x-webhook-signature") || "").replace(
-    /^sha256=/i,
-    "",
-  );
+  const rawSignature = request.headers.get("x-webhook-signature") || "";
+  // The provider's documented callback contract does not currently promise a
+  // signature. In that mode the per-generation, single-purpose correlation
+  // token remains mandatory and is verified against its stored hash by the
+  // route. If signature headers are present, require and validate both.
+  if (!timestamp && !rawSignature) return null;
+  const signature = rawSignature.replace(/^sha256=/i, "");
   if (
     !/^\d{10}$/.test(timestamp) ||
     !/^[A-Za-z0-9+/=_-]{40,100}$/.test(signature)

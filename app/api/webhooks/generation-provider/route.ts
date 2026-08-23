@@ -31,7 +31,10 @@ export async function POST(request: Request) {
     );
     const { raw, payload, bodyHash } = await readWebhookBody(request);
     const update = normalizeProviderTask(payload);
-    const timestamp = verifyProviderWebhookSignature(update.taskId, request);
+    const signatureTimestamp = verifyProviderWebhookSignature(
+      update.taskId,
+      request,
+    );
     const { data: generation, error } = await admin
       .from("generations")
       .select("id, workspace_id, provider_task_id, callback_token_hash")
@@ -70,7 +73,9 @@ export async function POST(request: Request) {
         );
     }
     const eventKey = createHash("sha256")
-      .update(`${update.taskId}:${timestamp}:${bodyHash}`)
+      .update(
+        `${update.taskId}:${signatureTimestamp ?? "correlation-only"}:${bodyHash}`,
+      )
       .digest("hex");
     const { data: event, error: eventError } = await admin
       .from("provider_webhook_events")

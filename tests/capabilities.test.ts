@@ -36,7 +36,6 @@ describe("capability registry", () => {
     ]);
     expect(ltx.audioBehavior.behavior).toBe("always-generated");
     expect(ltx.technical.map((field) => field.key)).toEqual([
-      "mode",
       "resolution",
       "aspectRatio",
       "duration",

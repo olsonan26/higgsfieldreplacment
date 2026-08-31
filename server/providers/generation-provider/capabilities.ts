@@ -795,7 +795,7 @@ const capabilities = [
   {
     contractVersion: "1.0.0",
     appModelKey: "ltx-2-5",
-    version: 2,
+    version: 3,
     displayName: "LTX-2.5",
     modelMaker: "Lightricks",
     mediaKind: "video",
@@ -805,16 +805,6 @@ const capabilities = [
     prompt: { minimum: 3, maximum: 20000 },
     negativePrompt: { supported: false },
     technical: [
-      {
-        key: "mode",
-        label: "Render pipeline",
-        providerField: "pipeline",
-        kind: "enum",
-        values: ["production", "fast"],
-        required: true,
-        defaultValue: { value: "production", source: "application" },
-        help: "Production uses Diffusion Fidelity Rendering; Fast uses the distilled starting pipeline.",
-      },
       {
         key: "resolution",
         label: "Resolution",
@@ -853,7 +843,7 @@ const capabilities = [
         values: [24],
         required: true,
         defaultValue: { value: 24, source: "application" },
-        help: "The initial production profile is fixed at 24 fps.",
+        help: "The deployed distilled profile is fixed at 24 fps.",
       },
       {
         key: "promptExtend",
@@ -898,7 +888,7 @@ const capabilities = [
     },
     costWarning: {
       estimateAvailable: false,
-      text: "Self-hosted compute cost depends on RunPod GPU time and cold starts. Usage remains estimated until the worker reports runtime metadata.",
+      text: "This release uses the official distilled pipeline. Self-hosted compute cost depends on RunPod GPU time and cold starts; usage remains estimated until the worker reports runtime metadata.",
     },
     source: {
       documentationUrl: "https://huggingface.co/Lightricks/LTX-2.5",

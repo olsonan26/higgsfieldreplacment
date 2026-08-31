@@ -8,8 +8,8 @@
 2. Build `runpod/ltx-2.5-worker/Dockerfile` and publish it to the organization's
    private container registry. The image contains code only, never weights.
 3. Create a RunPod network volume and populate
-   `/runpod-volume/models/ltx-2.5`. The seven expected paths are documented in the
-   worker. Use an 80 GB-or-larger GPU for the initial production profile, one
+   `/runpod-volume/models/ltx-2.5`. The six required paths are documented in the
+   worker. Use an 80 GB-or-larger GPU for the initial distilled profile, one
    GPU and one concurrent job per worker, a 60-minute execution timeout, and
    zero warm workers until cost and latency are measured.
 4. Set `LTX_REFERENCE_ALLOWED_HOSTS` on the worker to the exact Supabase project
@@ -27,6 +27,12 @@ Local weights may live on an external drive. Run
 `scripts/download-ltx-2.5.ps1 -Destination X:\models\ltx-2.5` and set
 `LTX_MODEL_DIR` to that directory. A local USB drive cannot be mounted by a
 cloud RunPod worker; production uses the network-volume copy.
+
+The production-detailing IC-LoRA is deliberately optional because its separate
+repository asks the account owner to share contact information and consent to
+marketing. Do not accept those terms through automation. After the owner accepts
+them, use `-IncludeProductionDetailing` and introduce DFR through a new, tested
+capability version; never silently expose a control the worker cannot honor.
 
 Rollback: disable the workspace model spending policy first, set the capability
 `enabled` flag false through a forward migration, scale the RunPod endpoint to

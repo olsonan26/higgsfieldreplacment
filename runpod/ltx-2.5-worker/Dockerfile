@@ -1,6 +1,8 @@
 FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04
 
 ARG LTX_COMMIT=a95ab856bf29407b6b066ede0abe1846050db56c
+LABEL org.opencontainers.image.source="https://github.com/olsonan26/higgsfieldreplacment" \
+      org.opencontainers.image.description="VesperFrame private LTX-2.5 RunPod worker"
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

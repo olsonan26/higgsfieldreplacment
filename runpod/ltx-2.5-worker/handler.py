@@ -67,16 +67,20 @@ def _download_reference(url: str, destination: Path) -> None:
                 output.write(chunk)
 
 
-def _required_model_paths() -> dict[str, Path]:
+def _required_model_paths(pipeline: str) -> dict[str, Path]:
     paths = {key: MODEL_DIR / relative for key, relative in MODEL_FILES.items()}
-    missing = [str(path) for path in paths.values() if not path.is_file()]
+    required = {
+        key: path
+        for key, path in paths.items()
+        if key != "detailing_lora" or pipeline == "production"
+    }
+    missing = [str(path) for path in required.values() if not path.is_file()]
     if missing:
         raise RuntimeError("LTX-2.5 weights are missing from LTX_MODEL_DIR: " + ", ".join(missing))
     return paths
 
 
 def _command(payload: dict, output_path: Path, work_dir: Path) -> list[str]:
-    model = _required_model_paths()
     prompt = payload.get("prompt")
     if not isinstance(prompt, str) or not 3 <= len(prompt) <= 20_000:
         raise ValueError("prompt must contain 3 to 20,000 characters")
@@ -89,9 +93,10 @@ def _command(payload: dict, output_path: Path, work_dir: Path) -> list[str]:
     frame_rate = payload.get("frame_rate", 24)
     if frame_rate != 24:
         raise ValueError("Only 24 fps is supported by this worker profile")
-    pipeline = payload.get("pipeline", "production")
+    pipeline = payload.get("pipeline", "fast")
     if pipeline not in {"production", "fast"}:
         raise ValueError("Unsupported render pipeline")
+    model = _required_model_paths(pipeline)
     command = [
         "python", "-m", "ltx_pipelines.dfr_pipeline" if pipeline == "production" else "ltx_pipelines.distilled",
         "--transformer-path", str(model["transformer"]),

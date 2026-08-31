@@ -483,7 +483,6 @@ describe("deterministic generation compiler", () => {
       "ltx-2-5",
       {
         resolution: "1080p",
-        mode: "production",
         aspectRatio: "9:16",
         duration: "10",
         frameRate: 24,
@@ -496,7 +495,6 @@ describe("deterministic generation compiler", () => {
       model: "self-hosted/ltx-2.5-distilled",
       input: {
         resolution: "1080p",
-        pipeline: "production",
         aspect_ratio: "9:16",
         duration: "10",
         frame_rate: 24,

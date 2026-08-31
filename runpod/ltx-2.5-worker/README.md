@@ -1,8 +1,8 @@
 # VesperFrame LTX-2.5 worker
 
 This private RunPod Serverless worker executes the official Lightricks
-production DFR pipeline by default, with an explicit faster distilled option,
-pinned to commit `a95ab856bf29407b6b066ede0abe1846050db56c`.
+distilled pipeline, pinned to commit
+`a95ab856bf29407b6b066ede0abe1846050db56c`.
 It does not bake model weights, API keys, prompts, or generated media into the
 container image.
 
@@ -13,7 +13,7 @@ after its GitHub Actions build succeeds.
 
 ## Weight storage
 
-The required split checkpoint is roughly 66 GiB plus the small duration head.
+The required split checkpoint is roughly 66 GiB including the duration head.
 For local use, run `scripts/download-ltx-2.5.ps1 -Destination X:\models\ltx-2.5`
 and set `LTX_MODEL_DIR` to that external-drive directory. For RunPod, attach a
 network volume at `/runpod-volume`, download the same files once into
@@ -22,6 +22,10 @@ worker after the download finishes.
 
 The model repository is gated. The account owner must accept the LTX-2.5
 license and use a read-only Hugging Face token with gated-repository access.
+The optional production-detailing IC-LoRA has a separate contact-sharing and
+marketing consent gate. It is not required or advertised by this release. Run
+the download script with `-IncludeProductionDetailing` only after the account
+owner separately accepts those terms and a versioned capability enables DFR.
 
 ## Endpoint policy
 

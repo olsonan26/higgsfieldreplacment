@@ -2,6 +2,29 @@
 
 Status: implementation inventory. Provider contracts are versioned fixtures, not UI guesses. Official source pages and their verified date are stored with every capability; the checked-in registry and contract snapshots are the executable source of truth.
 
+## LTX-2.5 private worker
+
+| Behavior       | VesperFrame contract                                                                                                        |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Execution      | Private RunPod Serverless endpoint pinned at `a95ab856`; production DFR by default with an explicit faster distilled option |
+| Inputs         | Text prompt; optional JPEG/PNG first frame                                                                                  |
+| Profiles       | 720p or 1080p profile; 16:9, 9:16, or 1:1; exact worker dimensions are listed below                                         |
+| Duration       | Auto (3–12 second bounded duration head), 5 seconds (121 frames), or 10 seconds (241 frames)                                |
+| Frame rate     | 24 fps                                                                                                                      |
+| Audio          | Joint synchronized audio is always generated; no misleading toggle is exposed                                               |
+| Other controls | Production/Fast render pipeline, optional prompt enhancement, and deterministic seed                                        |
+| Output         | Direct one-job signed upload to private Supabase Storage, then signature/checksum validation and durable asset registration |
+
+The official two-stage pipeline requires dimensions divisible by 64. The
+profiles map as follows: 720p landscape `1024x576`, portrait `576x1024`, square
+`768x768`; 1080p landscape `1920x1088`, portrait `1088x1920`, square
+`1088x1088`. The profile name is a quality tier; the exact effective dimensions
+must be shown in preflight before spend.
+
+Source: [official LTX-2.5 model card](https://huggingface.co/Lightricks/LTX-2.5),
+verified 2026-08-31. The model is gated and governed by the LTX-2.x Community
+License. Formal production use must include license/revenue review.
+
 ## Contract requirements
 
 Every `ModelCapability` version records:

@@ -4,6 +4,23 @@
 
 Protected assets are account identity, workspace membership, prompts, source media, generated media, model credentials, callback secrets, signed URLs, budgets, usage records, and audit history. The browser is untrusted. Supabase RLS is the tenant boundary; application RBAC is defense in depth. Generation credentials and service credentials exist only in server runtimes.
 
+## Private GPU worker boundary
+
+- RunPod receives only a compiled request, short-lived signed reference URLs,
+  an unguessable callback correlation URL, and a two-hour signed upload URL for
+  one predetermined private object. It never receives the Supabase secret key.
+- The adapter key and endpoint ID are server-only. Task identifiers are prefixed
+  internally so reconciliation cannot send a task to the wrong backend.
+- The worker rejects non-HTTPS references, credentials in URLs, redirects,
+  disallowed hosts, private/reserved DNS results, oversized reference files,
+  unsupported setting combinations, and outputs beyond the reservation limit.
+- Callback payloads cannot choose arbitrary storage objects: ingestion requires
+  the workspace/project/generation prefix reserved before submission, then
+  validates the file signature, size, and checksum before creating an asset.
+- Prompts, signed URLs, generated media, and provider errors must remain absent
+  from worker/application logs and analytics. The worker returns only storage
+  path and non-sensitive media metadata.
+
 ## Principal threats and controls
 
 | Threat                              | Control                                                                                                                                                                                                                               | Residual risk / operation                                                                            |

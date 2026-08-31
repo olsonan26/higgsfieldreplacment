@@ -1,5 +1,39 @@
 # Operations and Runbooks
 
+## LTX-2.5 / RunPod rollout
+
+1. Accept the gated LTX-2.5 license with the organization-owned Hugging Face
+   account. Use a read-only, gated-repository token only for the one-time model
+   download; revoke it after the network volume is populated.
+2. Build `runpod/ltx-2.5-worker/Dockerfile` and publish it to the organization's
+   private container registry. The image contains code only, never weights.
+3. Create a RunPod network volume and populate
+   `/runpod-volume/models/ltx-2.5`. The seven expected paths are documented in the
+   worker. Use an 80 GB-or-larger GPU for the initial production profile, one
+   GPU and one concurrent job per worker, a 60-minute execution timeout, and
+   zero warm workers until cost and latency are measured.
+4. Set `LTX_REFERENCE_ALLOWED_HOSTS` on the worker to the exact Supabase project
+   hostname. Set `RUNPOD_API_KEY`, `RUNPOD_ENDPOINT_ID`, and
+   `RUNPOD_API_BASE_URL` only in Vercel's server-side environment.
+5. Apply the capability migration. An owner/admin must then explicitly create a
+   `workspace_model_spend_policies` row for `ltx-2-5`; the migration does not
+   silently enable spend.
+6. Submit a 5-second 720p smoke job behind the existing hard spending cap.
+   Confirm webhook completion, reconciliation fallback, MP4 signature,
+   checksum, private asset record, signed preview/download, ledger estimate,
+   and reload persistence before enabling it for users.
+
+Local weights may live on an external drive. Run
+`scripts/download-ltx-2.5.ps1 -Destination X:\models\ltx-2.5` and set
+`LTX_MODEL_DIR` to that directory. A local USB drive cannot be mounted by a
+cloud RunPod worker; production uses the network-volume copy.
+
+Rollback: disable the workspace model spending policy first, set the capability
+`enabled` flag false through a forward migration, scale the RunPod endpoint to
+zero, and retain the private network volume until all active jobs and retention
+obligations are resolved. Existing generation and ledger records remain
+immutable.
+
 ## Deployment readiness
 
 Configure the public Supabase URL/publishable key and all server-only values listed in `.env.example`. `/api/health` proves the process is alive; `/api/readiness` must return 200 before enabling generation. Configure scheduled reconciliation and verify its secret-protected invocation. Keep every model spend policy disabled until its conservative reserve is reviewed.

@@ -6,6 +6,11 @@ pinned to commit `a95ab856bf29407b6b066ede0abe1846050db56c`.
 It does not bake model weights, API keys, prompts, or generated media into the
 container image.
 
+The publish workflow builds the worker as
+`ghcr.io/olsonan26/vesperframe-ltx25-worker:latest` and also emits an immutable
+commit-SHA tag for rollback. RunPod production templates should use the SHA tag
+after its GitHub Actions build succeeds.
+
 ## Weight storage
 
 The required split checkpoint is roughly 66 GiB plus the small duration head.

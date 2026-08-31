@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /opt/ltx2
 RUN git clone --filter=blob:none https://github.com/Lightricks/LTX-2.git . && \
     git checkout "$LTX_COMMIT" && \
-    uv sync --extra natten && \
+    uv sync --no-dev --extra natten && \
     uv pip install runpod==1.12.0 requests==2.34.2
 
 COPY handler.py /worker/handler.py

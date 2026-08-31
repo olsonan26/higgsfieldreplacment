@@ -511,6 +511,18 @@ function addReferences(
         input.image_input = urls("reference_image");
       break;
     }
+    case "ltx25": {
+      const first = byRole("first_frame")[0];
+      if (first)
+        input.images = [
+          {
+            url: first.providerLocator,
+            frame_index: 0,
+            strength: 1,
+          },
+        ];
+      break;
+    }
   }
 }
 
@@ -743,6 +755,30 @@ export function compileGenerationRequest(
   for (const field of fields) {
     const value = effectiveSettings[field.key];
     if (value !== undefined) input[field.providerField] = value;
+  }
+  if (capability.adapter === "ltx25") {
+    const dimensions: Record<string, [number, number]> = {
+      "720p:16:9": [1024, 576],
+      "720p:9:16": [576, 1024],
+      "720p:1:1": [768, 768],
+      "1080p:16:9": [1920, 1088],
+      "1080p:9:16": [1088, 1920],
+      "1080p:1:1": [1088, 1088],
+    };
+    const dimension =
+      dimensions[
+        `${effectiveSettings.resolution}:${effectiveSettings.aspectRatio}`
+      ];
+    if (!dimension)
+      throw new GenerationCompileError([
+        {
+          path: "technicalSettings",
+          message:
+            "This LTX-2.5 resolution and aspect ratio are not supported.",
+        },
+      ]);
+    input.output_width = dimension[0];
+    input.output_height = dimension[1];
   }
   if (capability.multiShot) input.multi_prompt = multiShots ? multiPrompts : [];
   addReferences(capability, input, source.references);

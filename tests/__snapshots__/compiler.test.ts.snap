@@ -71,6 +71,25 @@ Creative direction — Film setup: Noir genre; 1980s era; Measured tempo. Camera
 }
 `;
 
+exports[`deterministic generation compiler > produces checked-in exact default payload snapshots for every preset > ltx-2-5 1`] = `
+{
+  "input": {
+    "aspect_ratio": "16:9",
+    "duration": "5",
+    "enhance_prompt": false,
+    "frame_rate": 24,
+    "output_height": 576,
+    "output_width": 1024,
+    "pipeline": "production",
+    "prompt": "A lone cyclist crosses a rain-lit bridge
+
+Creative direction — Film setup: Noir genre; 1980s era; Measured tempo. Camera: 35mm Film body; Anamorphic lens; f/4 Moderate aperture; Dolly zoom movement. Color palette: Nocturne. Lighting: Moonlit.",
+    "resolution": "720p",
+  },
+  "model": "self-hosted/ltx-2.5-distilled",
+}
+`;
+
 exports[`deterministic generation compiler > produces checked-in exact default payload snapshots for every preset > nano-banana-2 1`] = `
 {
   "input": {

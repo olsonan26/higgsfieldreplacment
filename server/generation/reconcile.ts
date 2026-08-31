@@ -5,8 +5,10 @@ import { logEvent } from "@/lib/logging";
 import { processProviderUpdate } from "@/server/generation/process-provider-update";
 import { getProviderTask } from "@/server/providers/generation-provider/adapter";
 
-const MAX_ATTEMPTS = 12;
-const TIMEOUT_MS = 15 * 60_000;
+const DEFAULT_MAX_ATTEMPTS = 12;
+const DEFAULT_TIMEOUT_MS = 15 * 60_000;
+const PRIVATE_GPU_MAX_ATTEMPTS = 20;
+const PRIVATE_GPU_TIMEOUT_MS = 75 * 60_000;
 
 function nextDelay(attempt: number) {
   const base = Math.min(15_000 * 2 ** Math.max(0, attempt), 300_000);
@@ -54,7 +56,14 @@ export async function reconcileDueGenerations(
       }
       continue;
     }
-    if (row.reconciliation_attempts >= MAX_ATTEMPTS || age > TIMEOUT_MS) {
+    const privateGpuTask = row.provider_task_id.startsWith("runpod:");
+    const maximumAttempts = privateGpuTask
+      ? PRIVATE_GPU_MAX_ATTEMPTS
+      : DEFAULT_MAX_ATTEMPTS;
+    const timeoutMs = privateGpuTask
+      ? PRIVATE_GPU_TIMEOUT_MS
+      : DEFAULT_TIMEOUT_MS;
+    if (row.reconciliation_attempts >= maximumAttempts || age > timeoutMs) {
       await admin
         .from("generations")
         .update({

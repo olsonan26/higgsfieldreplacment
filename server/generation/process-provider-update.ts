@@ -3,7 +3,10 @@ import "server-only";
 import { createHash } from "node:crypto";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { HttpError } from "@/lib/http";
-import { ingestGenerationOutputs } from "@/server/assets/ingest-output";
+import {
+  ingestGenerationOutputs,
+  ingestPreparedGenerationOutputs,
+} from "@/server/assets/ingest-output";
 import type { NormalizedProviderTask } from "@/server/providers/generation-provider/adapter";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -169,11 +172,13 @@ export async function processProviderUpdate(
     })
     .eq("id", generation.id);
   try {
-    const ingested = await ingestGenerationOutputs(
-      admin,
-      generation,
-      update.resultUrls,
-    );
+    const ingested = update.storagePaths?.length
+      ? await ingestPreparedGenerationOutputs(
+          admin,
+          generation,
+          update.storagePaths,
+        )
+      : await ingestGenerationOutputs(admin, generation, update.resultUrls);
     await recordAuthoritativeUsage(
       admin,
       generation,

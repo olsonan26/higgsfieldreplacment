@@ -1,7 +1,13 @@
 import "server-only";
 
 import { z } from "zod";
-import { getGenerationProviderEnvironment } from "@/lib/env";
+import {
+  getGenerationProviderEnvironment,
+  getRunpodEnvironment,
+} from "@/lib/env";
+
+const RUNPOD_PREFIX = "runpod:";
+const LTX_25_MODEL = "self-hosted/ltx-2.5-distilled";
 
 const envelopeSchema = z
   .object({
@@ -24,6 +30,7 @@ export type NormalizedProviderTask = {
   safeError?: string;
   consumedCredits?: number;
   completedAt?: Date;
+  storagePaths?: string[];
 };
 
 export class ProviderAdapterError extends Error {
@@ -90,11 +97,75 @@ async function providerRequest(path: string, init: RequestInit) {
   }
 }
 
+async function runpodRequest(path: string, init: RequestInit) {
+  const environment = getRunpodEnvironment();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25_000);
+  try {
+    const response = await fetch(
+      `${environment.RUNPOD_API_BASE_URL.replace(/\/$/, "")}/${environment.RUNPOD_ENDPOINT_ID}${path}`,
+      {
+        ...init,
+        cache: "no-store",
+        redirect: "error",
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${environment.RUNPOD_API_KEY}`,
+          Accept: "application/json",
+          ...(init.body ? { "Content-Type": "application/json" } : {}),
+        },
+      },
+    );
+    const raw = await response.text();
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw new ProviderAdapterError(
+        "RUNPOD_INVALID_JSON",
+        response.status >= 500,
+      );
+    }
+    if (!response.ok)
+      throw new ProviderAdapterError(
+        `RUNPOD_HTTP_${response.status}`,
+        response.status === 408 ||
+          response.status === 429 ||
+          response.status >= 500,
+      );
+    return parsed;
+  } catch (error) {
+    if (error instanceof ProviderAdapterError) throw error;
+    if (error instanceof DOMException && error.name === "AbortError")
+      throw new ProviderAdapterError("RUNPOD_TIMEOUT", true);
+    throw new ProviderAdapterError("RUNPOD_NETWORK", true);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function createProviderTask(payload: {
   model: string;
   input: Record<string, unknown>;
   callbackUrl: string;
 }) {
+  if (payload.model === LTX_25_MODEL) {
+    const callbackUrl = new URL(payload.callbackUrl);
+    callbackUrl.searchParams.set("backend", "runpod");
+    const response = await runpodRequest("/run", {
+      method: "POST",
+      body: JSON.stringify({
+        input: payload.input,
+        webhook: callbackUrl.toString(),
+      }),
+    });
+    const parsed = z
+      .object({ id: z.string().min(1).max(300) })
+      .safeParse(response);
+    if (!parsed.success)
+      throw new ProviderAdapterError("RUNPOD_MISSING_TASK_ID", false);
+    return { taskId: `${RUNPOD_PREFIX}${parsed.data.id}` };
+  }
   const envelope = await providerRequest("/api/v1/jobs/createTask", {
     method: "POST",
     body: JSON.stringify({
@@ -107,6 +178,51 @@ export async function createProviderTask(payload: {
   if (!data.success)
     throw new ProviderAdapterError("PROVIDER_MISSING_TASK_ID", false);
   return { taskId: data.data.taskId };
+}
+
+export function normalizeRunpodTask(payload: unknown): NormalizedProviderTask {
+  const parsed = z
+    .object({
+      id: z.string().min(1).max(300),
+      status: z.string().min(1).max(80),
+      output: z.unknown().optional(),
+      error: z.unknown().optional(),
+      executionTime: z.number().nonnegative().optional(),
+    })
+    .passthrough()
+    .parse(payload);
+  const stateMap: Record<string, NormalizedProviderTask["state"]> = {
+    IN_QUEUE: "queued",
+    IN_PROGRESS: "running",
+    COMPLETED: "success",
+    FAILED: "failed",
+    CANCELLED: "failed",
+    TIMED_OUT: "failed",
+  };
+  const state = stateMap[parsed.status.toUpperCase()] || "waiting";
+  const output =
+    parsed.output && typeof parsed.output === "object"
+      ? (parsed.output as Record<string, unknown>)
+      : {};
+  const storagePaths = Array.isArray(output.storagePaths)
+    ? output.storagePaths.filter(
+        (item): item is string =>
+          typeof item === "string" && /^[A-Za-z0-9._/-]{3,600}$/.test(item),
+      )
+    : [];
+  return {
+    taskId: `${RUNPOD_PREFIX}${parsed.id}`,
+    state,
+    progress: state === "success" ? 100 : state === "running" ? 50 : 0,
+    resultUrls: [],
+    storagePaths,
+    ...(state === "failed"
+      ? {
+          safeError:
+            "The private video worker could not complete this request.",
+        }
+      : {}),
+  };
 }
 
 function collectHttpsUrls(
@@ -200,6 +316,16 @@ export function normalizeProviderTask(
 export async function getProviderTask(taskId: string) {
   if (!/^[A-Za-z0-9._:-]{3,300}$/.test(taskId))
     throw new ProviderAdapterError("PROVIDER_INVALID_TASK_ID", false);
+  if (taskId.startsWith(RUNPOD_PREFIX)) {
+    const remoteId = taskId.slice(RUNPOD_PREFIX.length);
+    if (!/^[A-Za-z0-9._-]{3,300}$/.test(remoteId))
+      throw new ProviderAdapterError("RUNPOD_INVALID_TASK_ID", false);
+    return normalizeRunpodTask(
+      await runpodRequest(`/status/${encodeURIComponent(remoteId)}`, {
+        method: "GET",
+      }),
+    );
+  }
   const envelope = await providerRequest(
     `/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(taskId)}`,
     { method: "GET" },

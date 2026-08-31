@@ -208,6 +208,7 @@ describe("deterministic generation compiler", () => {
       "nano-banana-2",
       "gpt-image-2",
       "grok-imagine-image-2",
+      "ltx-2-5",
       "grok-imagine-video",
     ]) {
       expect(compile(capability).sanitizedRequestPreview).toMatchSnapshot(
@@ -223,6 +224,7 @@ describe("deterministic generation compiler", () => {
       "gemini-omni-video",
       "nano-banana-2",
       "grok-imagine-image-2",
+      "ltx-2-5",
       "grok-imagine-video",
     ].map((key) => getCapability(key)!)) {
       const result = compile(capability.appModelKey);
@@ -473,6 +475,43 @@ describe("deterministic generation compiler", () => {
       resolution: "4K",
       output_format: "png",
       image_input: [`asset://${assetIds[0]}`],
+    });
+  });
+
+  it("compiles every selected LTX-2.5 setting and first frame exactly", () => {
+    const result = compile(
+      "ltx-2-5",
+      {
+        resolution: "1080p",
+        mode: "production",
+        aspectRatio: "9:16",
+        duration: "10",
+        frameRate: 24,
+        promptExtend: true,
+        seed: 42,
+      },
+      [reference(0, { role: "first_frame" })],
+    );
+    expect(result.sanitizedRequestPreview).toMatchObject({
+      model: "self-hosted/ltx-2.5-distilled",
+      input: {
+        resolution: "1080p",
+        pipeline: "production",
+        aspect_ratio: "9:16",
+        duration: "10",
+        frame_rate: 24,
+        enhance_prompt: true,
+        seed: 42,
+        output_width: 1088,
+        output_height: 1920,
+        images: [
+          {
+            url: `asset://${assetIds[0]}`,
+            frame_index: 0,
+            strength: 1,
+          },
+        ],
+      },
     });
   });
 

@@ -27,7 +27,8 @@ export type TechnicalSettingKey =
   | "promptExtend"
   | "watermark"
   | "multiShots"
-  | "webSearch";
+  | "webSearch"
+  | "frameRate";
 
 const defaultValueSchema = z
   .object({
@@ -51,6 +52,7 @@ const technicalFieldSchema = z
       "watermark",
       "multiShots",
       "webSearch",
+      "frameRate",
     ]),
     label: z.string().min(1).max(80),
     providerField: z.string().regex(/^[a-z][a-z0-9_]*$/),
@@ -138,6 +140,7 @@ export const modelCapabilitySchema = z
       "gptImage2",
       "grokImage2",
       "grokVideo",
+      "ltx25",
     ]),
     providerModelId: z.string().min(1).max(160),
     supportedModes: z.array(z.string().min(1)).min(1),
@@ -166,6 +169,7 @@ export const modelCapabilitySchema = z
           "generated-toggle",
           "reference-only",
           "generated-and-reference",
+          "always-generated",
         ]),
         notes: z.string().min(1).max(500),
       })

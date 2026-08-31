@@ -244,9 +244,28 @@ export async function submitGenerationBatch(
       );
       callbackUrl.searchParams.set("generation", generation.id);
       callbackUrl.searchParams.set("correlation", token);
+      const providerInput = { ...compiled.providerPayload.input };
+      if (capability.adapter === "ltx25") {
+        const storagePath = `${submission.workspaceId}/${submission.projectId}/${generation.id}/VesperFrame-${generation.id}-1.mp4`;
+        const { data: upload, error: uploadError } = await admin.storage
+          .from("vesperframe-generated")
+          .createSignedUploadUrl(storagePath, { upsert: false });
+        if (uploadError || !upload)
+          throw new HttpError(
+            500,
+            "WorkerUploadReservationFailed",
+            "A private output destination could not be reserved",
+          );
+        providerInput._vesper_output = {
+          signed_upload_url: upload.signedUrl,
+          storage_path: storagePath,
+          maximum_bytes: 1_073_741_824,
+          content_type: "video/mp4",
+        };
+      }
       const provider = await createProviderTask({
         model: compiled.providerPayload.model,
-        input: compiled.providerPayload.input,
+        input: providerInput,
         callbackUrl: callbackUrl.toString(),
       });
       const now = new Date();

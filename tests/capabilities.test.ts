@@ -17,15 +17,33 @@ describe("capability registry", () => {
       "nano-banana-2",
       "gpt-image-2",
       "grok-imagine-image-2",
+      "ltx-2-5",
       "grok-imagine-video",
     ]);
     for (const capability of MODEL_CAPABILITIES) {
       expect(modelCapabilitySchema.parse(capability)).toEqual(capability);
-      expect(capability.source.verifiedAt).toBe("2026-08-22");
-      expect(capability.source.documentationUrl).toMatch(
-        /^https:\/\/docs\.kie\.ai\//,
-      );
+      expect(capability.source.verifiedAt).toMatch(/^2026-08-(22|31)$/);
+      expect(capability.source.documentationUrl).toMatch(/^https:\/\//);
     }
+  });
+
+  it("describes LTX-2.5 as a self-hosted, audio-generating video capability", () => {
+    const ltx = getCapability("ltx-2-5")!;
+    expect(ltx.adapter).toBe("ltx25");
+    expect(ltx.supportedModes).toEqual([
+      "text-to-video",
+      "first-frame-to-video",
+    ]);
+    expect(ltx.audioBehavior.behavior).toBe("always-generated");
+    expect(ltx.technical.map((field) => field.key)).toEqual([
+      "mode",
+      "resolution",
+      "aspectRatio",
+      "duration",
+      "frameRate",
+      "promptExtend",
+      "seed",
+    ]);
   });
 
   it("removes private adapter routing fields from client capability responses", () => {

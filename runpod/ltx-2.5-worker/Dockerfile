@@ -1,0 +1,22 @@
+FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04
+
+ARG LTX_COMMIT=a95ab856bf29407b6b066ede0abe1846050db56c
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_LINK_MODE=copy \
+    LTX_MODEL_DIR=/runpod-volume/models/ltx-2.5
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates ffmpeg git python3 python3-pip && \
+    rm -rf /var/lib/apt/lists/* && \
+    python3 -m pip install --break-system-packages --no-cache-dir uv==0.12.7
+
+WORKDIR /opt/ltx2
+RUN git clone --filter=blob:none https://github.com/Lightricks/LTX-2.git . && \
+    git checkout "$LTX_COMMIT" && \
+    uv sync --extra natten && \
+    uv pip install runpod==1.12.0 requests==2.34.2
+
+COPY handler.py /worker/handler.py
+CMD ["uv", "run", "python", "/worker/handler.py"]

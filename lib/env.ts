@@ -28,6 +28,16 @@ const generationProviderEnvironment = z.object({
   GENERATION_PROVIDER_WEBHOOK_HMAC_KEY: z.string().min(32),
 });
 
+const runpodEnvironment = z.object({
+  RUNPOD_API_KEY: z.string().min(16),
+  RUNPOD_ENDPOINT_ID: z.string().regex(/^[A-Za-z0-9_-]{3,80}$/),
+  RUNPOD_API_BASE_URL: z
+    .string()
+    .url()
+    .startsWith("https://")
+    .default("https://api.runpod.ai/v2"),
+});
+
 const ingestionEnvironment = z.object({
   RESULT_ALLOWED_HOSTS: z
     .string()
@@ -121,6 +131,14 @@ export function getGenerationProviderEnvironment() {
   });
 }
 
+export function getRunpodEnvironment() {
+  return runpodEnvironment.parse({
+    RUNPOD_API_KEY: process.env.RUNPOD_API_KEY,
+    RUNPOD_ENDPOINT_ID: process.env.RUNPOD_ENDPOINT_ID,
+    RUNPOD_API_BASE_URL: process.env.RUNPOD_API_BASE_URL,
+  });
+}
+
 export function getIngestionEnvironment() {
   return ingestionEnvironment.parse({
     RESULT_ALLOWED_HOSTS: process.env.RESULT_ALLOWED_HOSTS,
@@ -140,6 +158,10 @@ export function getOptionalServerReadiness() {
     persistenceCredential: Boolean(process.env.SUPABASE_SECRET_KEY?.trim()),
     generationCredential: Boolean(
       process.env.GENERATION_PROVIDER_API_KEY?.trim(),
+    ),
+    ltx25Credential: Boolean(
+      process.env.RUNPOD_API_KEY?.trim() &&
+        process.env.RUNPOD_ENDPOINT_ID?.trim(),
     ),
     webhookVerification: Boolean(
       process.env.GENERATION_PROVIDER_WEBHOOK_HMAC_KEY?.trim() &&

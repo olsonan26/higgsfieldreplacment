@@ -5,7 +5,10 @@ import { apiError, correlationId, HttpError } from "@/lib/http";
 import { logEvent } from "@/lib/logging";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { processProviderUpdate } from "@/server/generation/process-provider-update";
-import { normalizeProviderTask } from "@/server/providers/generation-provider/adapter";
+import {
+  normalizeProviderTask,
+  normalizeRunpodTask,
+} from "@/server/providers/generation-provider/adapter";
 import {
   readWebhookBody,
   verifyCallbackCorrelation,
@@ -18,6 +21,7 @@ export const maxDuration = 60;
 const querySchema = z.object({
   generation: z.string().uuid(),
   correlation: z.string().min(32).max(160),
+  backend: z.enum(["runpod"]).optional(),
 });
 
 export async function POST(request: Request) {
@@ -30,7 +34,10 @@ export async function POST(request: Request) {
       Object.fromEntries(new URL(request.url).searchParams),
     );
     const { raw, payload, bodyHash } = await readWebhookBody(request);
-    const update = normalizeProviderTask(payload);
+    const update =
+      query.backend === "runpod"
+        ? normalizeRunpodTask(payload)
+        : normalizeProviderTask(payload);
     const signatureTimestamp = verifyProviderWebhookSignature(
       update.taskId,
       request,

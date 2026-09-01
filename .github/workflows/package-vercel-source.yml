@@ -49,3 +49,5 @@ jobs:
           fi
           git commit -m "chore: refresh Vercel deployment source [skip ci]"
           git push
+
+# This workflow keeps the CLI-deployed Vercel project reproducible from main.

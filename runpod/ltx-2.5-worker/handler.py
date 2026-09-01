@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import ipaddress
+import json
 import os
 from pathlib import Path
 import socket
@@ -16,6 +17,7 @@ import runpod
 
 MODEL_DIR = Path(os.environ.get("LTX_MODEL_DIR", "/runpod-volume/models/ltx-2.5"))
 MAX_REFERENCE_BYTES = 20_000_000
+MAX_SAFETENSORS_HEADER_BYTES = 64 * 1024 * 1024
 DIMENSIONS = {
     ("720p", "16:9"): (1024, 576),
     ("720p", "9:16"): (576, 1024),
@@ -67,6 +69,50 @@ def _download_reference(url: str, destination: Path) -> None:
                 output.write(chunk)
 
 
+def _validate_safetensors_file(path: Path) -> None:
+    """Reject truncated or malformed model files before loading them onto the GPU."""
+    file_size = path.stat().st_size
+    if file_size < 9:
+        raise RuntimeError(f"LTX-2.5 weight is empty or truncated: {path}")
+    with path.open("rb") as handle:
+        header_length = int.from_bytes(handle.read(8), byteorder="little", signed=False)
+        if header_length <= 1 or header_length > MAX_SAFETENSORS_HEADER_BYTES:
+            raise RuntimeError(f"Invalid safetensors header length for {path}")
+        if 8 + header_length > file_size:
+            raise RuntimeError(f"Truncated safetensors header for {path}")
+        try:
+            header = json.loads(handle.read(header_length))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"Invalid safetensors header for {path}") from exc
+    if not isinstance(header, dict):
+        raise RuntimeError(f"Invalid safetensors metadata for {path}")
+    maximum_data_end = 0
+    tensor_count = 0
+    for name, entry in header.items():
+        if name == "__metadata__":
+            continue
+        if not isinstance(entry, dict):
+            raise RuntimeError(f"Invalid tensor entry in {path}: {name}")
+        offsets = entry.get("data_offsets")
+        if (
+            not isinstance(offsets, list)
+            or len(offsets) != 2
+            or not all(isinstance(value, int) and value >= 0 for value in offsets)
+            or offsets[0] > offsets[1]
+        ):
+            raise RuntimeError(f"Invalid tensor offsets in {path}: {name}")
+        maximum_data_end = max(maximum_data_end, offsets[1])
+        tensor_count += 1
+    if tensor_count == 0:
+        raise RuntimeError(f"No tensors found in {path}")
+    expected_minimum_size = 8 + header_length + maximum_data_end
+    if file_size < expected_minimum_size:
+        raise RuntimeError(
+            f"LTX-2.5 weight is truncated: {path} has {file_size} bytes, "
+            f"needs at least {expected_minimum_size}"
+        )
+
+
 def _required_model_paths(pipeline: str) -> dict[str, Path]:
     paths = {key: MODEL_DIR / relative for key, relative in MODEL_FILES.items()}
     required = {
@@ -77,6 +123,8 @@ def _required_model_paths(pipeline: str) -> dict[str, Path]:
     missing = [str(path) for path in required.values() if not path.is_file()]
     if missing:
         raise RuntimeError("LTX-2.5 weights are missing from LTX_MODEL_DIR: " + ", ".join(missing))
+    for path in required.values():
+        _validate_safetensors_file(path)
     return paths
 
 
@@ -105,6 +153,8 @@ def _command(payload: dict, output_path: Path, work_dir: Path) -> list[str]:
         "--audio-vae-path", str(model["audio_vae"]),
         "--duration-head-path", str(model["duration_head"]),
         "--spatial-upsampler-path", str(model["upsampler"]),
+        "--quantization", "fp8-cast",
+        "--offload", "cpu",
         "--width", str(width), "--height", str(height),
         "--frame-rate", "24", "--output-path", str(output_path),
         "--prompt", prompt,
@@ -138,6 +188,21 @@ def _command(payload: dict, output_path: Path, work_dir: Path) -> list[str]:
     return command
 
 
+def _run_pipeline(command: list[str]) -> None:
+    result = subprocess.run(
+        command,
+        check=False,
+        timeout=3_600,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    if result.returncode != 0:
+        output = (result.stdout or "").strip()
+        tail = output[-8_000:] if output else "no pipeline output was captured"
+        raise RuntimeError(f"LTX-2.5 pipeline exited with code {result.returncode}:\n{tail}")
+
+
 def handler(event: dict) -> dict:
     event_input = event.get("input")
     if not isinstance(event_input, dict):
@@ -156,7 +221,9 @@ def handler(event: dict) -> dict:
     with tempfile.TemporaryDirectory(prefix="vesper-ltx-") as temporary:
         work_dir = Path(temporary)
         output_path = work_dir / "output.mp4"
-        subprocess.run(_command(payload, output_path, work_dir), check=True, timeout=3_600)
+        _run_pipeline(_command(payload, output_path, work_dir))
+        if not output_path.is_file():
+            raise RuntimeError("LTX-2.5 pipeline finished without creating output.mp4")
         size = output_path.stat().st_size
         if size <= 0 or size > int(maximum_bytes):
             raise ValueError("Generated output is empty or exceeds its reservation")

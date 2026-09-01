@@ -7,7 +7,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     UV_LINK_MODE=copy \
-    LTX_MODEL_DIR=/runpod-volume/models/ltx-2.5
+    LTX_MODEL_DIR=/runpod-volume/models/ltx-2.5 \
+    LTX_PRELOAD_ON_START=1 \
+    LTX_OFFLOAD_MODE=none
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates ffmpeg git python3 python3-pip && \
@@ -21,5 +23,6 @@ RUN git clone --filter=blob:none https://github.com/Lightricks/LTX-2.git . && \
     uv pip install runpod==1.12.0 requests==2.34.2
 
 COPY handler.py /worker/handler.py
-RUN python3 -m py_compile /worker/handler.py
+RUN python3 -m py_compile /worker/handler.py && \
+    PYTHONPATH=/worker uv run python -c "import handler; print('LTX worker imports verified')"
 CMD ["uv", "run", "python", "/worker/handler.py"]

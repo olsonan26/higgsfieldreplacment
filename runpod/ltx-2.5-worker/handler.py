@@ -2,18 +2,29 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
 import hashlib
 import ipaddress
 import json
 import os
 from pathlib import Path
 import socket
-import subprocess
 import tempfile
+import threading
+import time
 from urllib.parse import urlparse
 
 import requests
 import runpod
+import torch
+from ltx_core.model.video_vae import AUTO_TILING, get_video_chunks_number
+from ltx_pipelines.distilled import DistilledPipeline
+from ltx_pipelines.utils.args import ImageConditioningInput
+from ltx_pipelines.utils.media_io import encode_video
+from ltx_pipelines.utils.model_paths import ModelPaths
+from ltx_pipelines.utils.quantization_factory import QuantizationKind
+from ltx_pipelines.utils.types import AutoDuration, OffloadMode
 
 MODEL_DIR = Path(os.environ.get("LTX_MODEL_DIR", "/runpod-volume/models/ltx-2.5"))
 MAX_REFERENCE_BYTES = 20_000_000
@@ -34,8 +45,13 @@ MODEL_FILES = {
     "audio_vae": "vae/ltx-2.5-audio-vae-bf16.safetensors",
     "upsampler": "latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors",
     "duration_head": "model_patches/ltx-2.5-duration-head-bf16.safetensors",
-    "detailing_lora": "loras/ltx-2.5-22b-ic-lora-pixel-spatial-upscaler-x2-1.0.safetensors",
 }
+
+_PIPELINE_LOCK = threading.Lock()
+
+
+def _log(event: str, **fields: object) -> None:
+    print(json.dumps({"event": event, **fields}, separators=(",", ":")), flush=True)
 
 
 def _public_https_url(value: str, allowed_hosts: set[str]) -> str:
@@ -114,22 +130,55 @@ def _validate_safetensors_file(path: Path) -> None:
         )
 
 
-def _required_model_paths(pipeline: str) -> dict[str, Path]:
+@lru_cache(maxsize=1)
+def _required_model_paths() -> dict[str, Path]:
     paths = {key: MODEL_DIR / relative for key, relative in MODEL_FILES.items()}
-    required = {
-        key: path
-        for key, path in paths.items()
-        if key != "detailing_lora" or pipeline == "production"
-    }
-    missing = [str(path) for path in required.values() if not path.is_file()]
+    missing = [str(path) for path in paths.values() if not path.is_file()]
     if missing:
         raise RuntimeError("LTX-2.5 weights are missing from LTX_MODEL_DIR: " + ", ".join(missing))
-    for path in required.values():
+    for path in paths.values():
         _validate_safetensors_file(path)
     return paths
 
 
-def _command(payload: dict, output_path: Path, work_dir: Path) -> list[str]:
+def _offload_mode() -> OffloadMode:
+    raw = os.environ.get("LTX_OFFLOAD_MODE", "none").strip().lower()
+    try:
+        return OffloadMode(raw)
+    except ValueError as exc:
+        raise RuntimeError("LTX_OFFLOAD_MODE must be one of: none, cpu, disk") from exc
+
+
+@lru_cache(maxsize=1)
+def _fast_pipeline() -> DistilledPipeline:
+    started = time.perf_counter()
+    model = _required_model_paths()
+    paths = ModelPaths.from_split(
+        transformer_path=str(model["transformer"]),
+        text_encoder_path=str(model["text_encoder"]),
+        video_vae_path=str(model["video_vae"]),
+        audio_vae_path=str(model["audio_vae"]),
+        duration_head_path=str(model["duration_head"]),
+    )
+    quantization = QuantizationKind.FP8_CAST.to_policy(
+        checkpoint_path=str(model["transformer"])
+    )
+    pipeline = DistilledPipeline(
+        model_paths=paths,
+        spatial_upsampler_path=str(model["upsampler"]),
+        loras=[],
+        quantization=quantization,
+        offload_mode=_offload_mode(),
+    )
+    _log(
+        "ltx.pipeline.ready",
+        seconds=round(time.perf_counter() - started, 3),
+        offloadMode=_offload_mode().value,
+    )
+    return pipeline
+
+
+def _validate_request(payload: dict) -> tuple[str, int, int, int, int | AutoDuration, int, bool]:
     prompt = payload.get("prompt")
     if not isinstance(prompt, str) or not 3 <= len(prompt) <= 20_000:
         raise ValueError("prompt must contain 3 to 20,000 characters")
@@ -142,50 +191,42 @@ def _command(payload: dict, output_path: Path, work_dir: Path) -> list[str]:
     frame_rate = payload.get("frame_rate", 24)
     if frame_rate != 24:
         raise ValueError("Only 24 fps is supported by this worker profile")
-    pipeline = payload.get("pipeline", "fast")
-    if pipeline not in {"production", "fast"}:
-        raise ValueError("Unsupported render pipeline")
-    model = _required_model_paths(pipeline)
-    command = [
-        "python", "-m", "ltx_pipelines.dfr_pipeline" if pipeline == "production" else "ltx_pipelines.distilled",
-        "--transformer-path", str(model["transformer"]),
-        "--text-encoder-path", str(model["text_encoder"]),
-        "--video-vae-path", str(model["video_vae"]),
-        "--audio-vae-path", str(model["audio_vae"]),
-        "--duration-head-path", str(model["duration_head"]),
-        "--spatial-upsampler-path", str(model["upsampler"]),
-        "--quantization", "fp8-cast",
-        "--offload", "cpu",
-        "--width", str(width), "--height", str(height),
-        "--frame-rate", "24", "--output-path", str(output_path),
-        "--prompt", prompt,
-    ]
-    if pipeline == "production":
-        command.extend(["--detailing-lora", str(model["detailing_lora"])])
+    if payload.get("pipeline", "fast") != "fast":
+        raise ValueError("Only the resident distilled fast pipeline is enabled")
 
     duration = str(payload.get("duration", "auto"))
-    fixed_num_frames = None
     if duration == "auto":
-        command.extend(["--auto-duration", "3", "12"])
+        num_frames: int | AutoDuration = AutoDuration(min_seconds=3, max_seconds=12)
     elif duration in {"5", "10", "12"}:
-        fixed_num_frames = {"5": 121, "10": 241, "12": 289}[duration]
-        command.extend(["--num-frames", str(fixed_num_frames)])
+        num_frames = {"5": 121, "10": 241, "12": 289}[duration]
     else:
         raise ValueError("Unsupported duration")
 
-    seed = payload.get("seed")
-    if seed is not None:
-        if not isinstance(seed, int) or isinstance(seed, bool) or not 0 <= seed <= 2_147_483_647:
-            raise ValueError("seed is outside the supported range")
-        command.extend(["--seed", str(seed)])
-    if payload.get("enhance_prompt") is True:
-        command.append("--enhance-prompt")
+    seed = payload.get("seed", 10)
+    if not isinstance(seed, int) or isinstance(seed, bool) or not 0 <= seed <= 2_147_483_647:
+        raise ValueError("seed is outside the supported range")
 
+    return (
+        prompt,
+        width,
+        height,
+        frame_rate,
+        num_frames,
+        seed,
+        payload.get("enhance_prompt") is True,
+    )
+
+
+def _prepare_images(payload: dict, work_dir: Path, num_frames: int | AutoDuration) -> list[ImageConditioningInput]:
     images = payload.get("images", [])
     if not isinstance(images, list) or len(images) > MAX_REFERENCE_IMAGES:
         raise ValueError(f"At most {MAX_REFERENCE_IMAGES} image conditions are supported")
+
     seen_frames: set[int] = set()
     zero_frame_count = 0
+    pending: list[tuple[str, Path, int, float]] = []
+    fixed_num_frames = num_frames if isinstance(num_frames, int) else None
+
     for index, image in enumerate(images):
         if not isinstance(image, dict) or not isinstance(image.get("url"), str):
             raise ValueError("Invalid image condition")
@@ -203,33 +244,73 @@ def _command(payload: dict, output_path: Path, work_dir: Path) -> list[str]:
             if zero_frame_count > 1:
                 raise ValueError("Only one image condition may target frame zero")
         else:
-            if duration == "auto":
+            if fixed_num_frames is None:
                 raise ValueError("Nonzero image anchors require a fixed duration")
             if frame_index % 8 != 0:
                 raise ValueError("Nonzero LTX image anchors must use frame indices divisible by 8")
-            if fixed_num_frames is not None and frame_index >= fixed_num_frames:
+            if frame_index >= fixed_num_frames:
                 raise ValueError("Image frame_index falls outside the generated timeline")
-        reference_path = work_dir / f"reference-{index}"
-        _download_reference(image["url"], reference_path)
-        command.extend(
-            ["--image", str(reference_path), str(frame_index), str(float(strength))]
+
+        suffix = Path(urlparse(image["url"]).path).suffix.lower()
+        if suffix not in {".jpg", ".jpeg", ".png"}:
+            suffix = ".img"
+        reference_path = work_dir / f"reference-{index}{suffix}"
+        pending.append((image["url"], reference_path, frame_index, float(strength)))
+
+    if pending:
+        started = time.perf_counter()
+        with ThreadPoolExecutor(max_workers=min(6, len(pending))) as executor:
+            futures = [executor.submit(_download_reference, url, path) for url, path, _, _ in pending]
+            for future in futures:
+                future.result()
+        _log(
+            "ltx.references.ready",
+            count=len(pending),
+            seconds=round(time.perf_counter() - started, 3),
         )
-    return command
+
+    return [
+        ImageConditioningInput(
+            path=str(path),
+            frame_idx=frame_index,
+            strength=strength,
+            crf=None,
+        )
+        for _, path, frame_index, strength in pending
+    ]
 
 
-def _run_pipeline(command: list[str]) -> None:
-    result = subprocess.run(
-        command,
-        check=False,
-        timeout=3_600,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
+def _generate(payload: dict, output_path: Path, work_dir: Path) -> None:
+    prompt, width, height, frame_rate, num_frames, seed, enhance_prompt = _validate_request(payload)
+    images = _prepare_images(payload, work_dir, num_frames)
+    started = time.perf_counter()
+    with _PIPELINE_LOCK, torch.inference_mode():
+        result = _fast_pipeline()(
+            prompt=prompt,
+            seed=seed,
+            height=height,
+            width=width,
+            frame_rate=frame_rate,
+            images=images,
+            num_frames=num_frames,
+            vae_dtype=torch.bfloat16,
+            tiling_config=AUTO_TILING,
+            enhance_prompt=enhance_prompt,
+            color_space=None,
+        )
+        encode_video(
+            video=result.video,
+            fps=frame_rate,
+            audio=result.audio,
+            output_path=str(output_path),
+            video_chunks_number=get_video_chunks_number(result.num_frames, result.tiling_config),
+            color_space=None,
+        )
+    _log(
+        "ltx.generate.completed",
+        frames=result.num_frames,
+        seconds=round(time.perf_counter() - started, 3),
     )
-    if result.returncode != 0:
-        output = (result.stdout or "").strip()
-        tail = output[-8_000:] if output else "no pipeline output was captured"
-        raise RuntimeError(f"LTX-2.5 pipeline exited with code {result.returncode}:\n{tail}")
 
 
 def handler(event: dict) -> dict:
@@ -247,10 +328,11 @@ def handler(event: dict) -> dict:
         raise ValueError("Invalid private output reservation")
     supabase_host = urlparse(signed_url).hostname or ""
     _public_https_url(signed_url, {supabase_host.lower()})
+
     with tempfile.TemporaryDirectory(prefix="vesper-ltx-") as temporary:
         work_dir = Path(temporary)
         output_path = work_dir / "output.mp4"
-        _run_pipeline(_command(payload, output_path, work_dir))
+        _generate(payload, output_path, work_dir)
         if not output_path.is_file():
             raise RuntimeError("LTX-2.5 pipeline finished without creating output.mp4")
         size = output_path.stat().st_size
@@ -260,6 +342,7 @@ def handler(event: dict) -> dict:
         with output_path.open("rb") as media:
             for chunk in iter(lambda: media.read(1024 * 1024), b""):
                 digest.update(chunk)
+        upload_started = time.perf_counter()
         with output_path.open("rb") as media:
             response = requests.put(
                 signed_url,
@@ -269,6 +352,11 @@ def handler(event: dict) -> dict:
                 allow_redirects=False,
             )
         response.raise_for_status()
+        _log(
+            "ltx.output.uploaded",
+            bytes=size,
+            seconds=round(time.perf_counter() - upload_started, 3),
+        )
         return {
             "storagePaths": [storage_path],
             "sha256": digest.hexdigest(),
@@ -277,5 +365,13 @@ def handler(event: dict) -> dict:
         }
 
 
+def _preload() -> None:
+    if os.environ.get("LTX_PRELOAD_ON_START", "1").strip().lower() in {"0", "false", "no"}:
+        _log("ltx.pipeline.preload_skipped")
+        return
+    _fast_pipeline()
+
+
 if __name__ == "__main__":
+    _preload()
     runpod.serverless.start({"handler": handler})

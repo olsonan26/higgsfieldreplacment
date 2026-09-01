@@ -158,8 +158,7 @@ export function compileLtxMultiReference(
   providerInput.images = imageConditions;
 
   const mapping = visuals.map((reference, index) => {
-    const canonical =
-      index === 0 ? "@image / @image1" : `@image${index + 1}`;
+    const canonical = index === 0 ? "@image / @image1" : `@image${index + 1}`;
     const alias = labelAlias(reference.label);
     const at = imageConditions[index].frame_index / FRAME_RATE;
     return `${canonical}${alias ? ` / @${alias}` : ""} = visual anchor ${index + 1} at ${at.toFixed(2)}s`;

@@ -118,7 +118,7 @@ export async function resolveGenerationDraft(
         ? { durationSeconds: metadata.durationSeconds }
         : {}),
       ...(reference.groupId ? { groupId: reference.groupId } : {}),
-      ...((reference.label || asset.safe_filename)
+      ...(reference.label || asset.safe_filename
         ? { label: reference.label || asset.safe_filename }
         : {}),
       ...(reference.description ? { description: reference.description } : {}),

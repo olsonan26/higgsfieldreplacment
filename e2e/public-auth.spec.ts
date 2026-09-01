@@ -36,7 +36,7 @@ test("restored production workflows deny anonymous data access and writes", asyn
     request.get(`/api/project-settings?${query}`),
     request.get(`/api/prompt-versions?${query}`),
     request.post("/api/assets/edit-layers", {
-      headers: { Origin: "http://localhost:3000" },
+      headers: { Origin: "http://127.0.0.1:3000" },
       data: {
         workspaceId,
         projectId,

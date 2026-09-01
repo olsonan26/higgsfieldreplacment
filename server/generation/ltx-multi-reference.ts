@@ -44,7 +44,8 @@ function distributedFrames(count: number, totalFrames: number) {
       throw new GenerationCompileError([
         {
           path: "references",
-          message: "The selected duration is too short for these LTX visual anchors.",
+          message:
+            "The selected duration is too short for these LTX visual anchors.",
         },
       ]);
     frames.push(frame);
@@ -87,14 +88,13 @@ export function compileLtxMultiReference(
   compiled: CompiledGenerationRequest,
   references: ReferenceInput[],
 ) {
-  const firstFrame = references.find((reference) => reference.role === "first_frame");
+  const firstFrame = references.find(
+    (reference) => reference.role === "first_frame",
+  );
   const promptImages = references.filter(
     (reference) => reference.role === "reference_image",
   );
-  const visuals = [
-    ...(firstFrame ? [firstFrame] : []),
-    ...promptImages,
-  ];
+  const visuals = [...(firstFrame ? [firstFrame] : []), ...promptImages];
 
   if (visuals.length > MAX_LTX_IMAGES)
     throw new GenerationCompileError([
@@ -158,7 +158,8 @@ export function compileLtxMultiReference(
   providerInput.images = imageConditions;
 
   const mapping = visuals.map((reference, index) => {
-    const canonical = index === 0 ? "@image / @image1" : `@image${index + 1}`;
+    const canonical =
+      index === 0 ? "@image / @image1" : `@image${index + 1}`;
     const alias = labelAlias(reference.label);
     const at = imageConditions[index].frame_index / FRAME_RATE;
     return `${canonical}${alias ? ` / @${alias}` : ""} = visual anchor ${index + 1} at ${at.toFixed(2)}s`;

@@ -9,7 +9,6 @@ import ipaddress
 import json
 import os
 from pathlib import Path
-import secrets
 import socket
 import tempfile
 import threading
@@ -203,9 +202,7 @@ def _validate_request(payload: dict) -> tuple[str, int, int, int, int | AutoDura
     else:
         raise ValueError("Unsupported duration")
 
-    seed = payload.get("seed")
-    if seed is None:
-        seed = secrets.randbelow(2_147_483_648)
+    seed = payload.get("seed", 10)
     if not isinstance(seed, int) or isinstance(seed, bool) or not 0 <= seed <= 2_147_483_647:
         raise ValueError("seed is outside the supported range")
 

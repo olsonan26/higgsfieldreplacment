@@ -23,3 +23,33 @@ values (
   true
 )
 on conflict (app_model_key, version) do nothing;
+
+-- Model spend policies are keyed to immutable capability rows. Carry every
+-- workspace's existing LTX v3 policy forward so v4 does not become selectable
+-- in the Studio while still failing reservation at submit time.
+insert into public.workspace_model_spend_policies (
+  workspace_id,
+  model_capability_id,
+  estimated_credit_reserve,
+  enabled,
+  created_by,
+  created_at,
+  updated_at
+)
+select
+  policy.workspace_id,
+  next_capability.id,
+  policy.estimated_credit_reserve,
+  policy.enabled,
+  policy.created_by,
+  now(),
+  now()
+from public.workspace_model_spend_policies as policy
+join public.model_capabilities as previous_capability
+  on previous_capability.id = policy.model_capability_id
+join public.model_capabilities as next_capability
+  on next_capability.app_model_key = 'ltx-2-5'
+ and next_capability.version = 4
+where previous_capability.app_model_key = 'ltx-2-5'
+  and previous_capability.version = 3
+on conflict (workspace_id, model_capability_id) do nothing;

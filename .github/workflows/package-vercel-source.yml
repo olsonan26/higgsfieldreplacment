@@ -1,0 +1,51 @@
+name: Package Vercel source
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "deployment-source.tar.gz"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: package-vercel-source-main
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build deployable source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -czf deployment-source.tar.gz \
+            app \
+            components \
+            lib \
+            server \
+            types \
+            package.json \
+            package-lock.json \
+            next-env.d.ts \
+            next.config.ts \
+            tsconfig.json \
+            proxy.ts \
+            vercel.json
+      - name: Publish source archive to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f deployment-source.tar.gz
+          if git diff --cached --quiet; then
+            echo "Archive is already current."
+            exit 0
+          fi
+          git commit -m "chore: refresh Vercel deployment source [skip ci]"
+          git push

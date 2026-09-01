@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Archive, Clipboard, Clock3, RefreshCw } from "lucide-react";
 import { apiRequest } from "@/lib/client/api";
 import type { StudioProject, StudioWorkspace } from "@/lib/studio/types";
@@ -22,6 +22,14 @@ type Generation = {
   outputs: ViewAsset[];
 };
 
+const TERMINAL_STATES = new Set([
+  "succeeded",
+  "failed",
+  "cancelled",
+  "timed_out",
+]);
+const ACTIVE_POLL_MS = 3_000;
+
 export function QueueView({
   workspace,
   project,
@@ -32,29 +40,73 @@ export function QueueView({
   const [generations, setGenerations] = useState<Generation[]>([]);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
-  const load = useCallback(async () => {
-    setBusy(true);
-    setError("");
-    try {
-      setGenerations(
-        (
-          await apiRequest<{ generations: Generation[] }>(
-            `/api/generations?workspaceId=${workspace.id}&projectId=${project.id}`,
-          )
-        ).generations,
-      );
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Queue could not be loaded",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }, [project.id, workspace.id]);
+  const polling = useRef(false);
+
+  const load = useCallback(
+    async (silent = false) => {
+      if (!silent) setBusy(true);
+      if (!silent) setError("");
+      try {
+        setGenerations(
+          (
+            await apiRequest<{ generations: Generation[] }>(
+              `/api/generations?workspaceId=${workspace.id}&projectId=${project.id}`,
+            )
+          ).generations,
+        );
+      } catch (caught) {
+        if (!silent) {
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : "Queue could not be loaded",
+          );
+        }
+      } finally {
+        if (!silent) setBusy(false);
+      }
+    },
+    [project.id, workspace.id],
+  );
+
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  const hasActiveGeneration = generations.some(
+    (generation) => !TERMINAL_STATES.has(generation.state),
+  );
+
+  useEffect(() => {
+    if (!hasActiveGeneration) return;
+
+    async function poll() {
+      if (polling.current || document.visibilityState !== "visible") return;
+      polling.current = true;
+      try {
+        if (workspace.role !== "viewer") {
+          await apiRequest("/api/generations/reconcile", {
+            method: "POST",
+            body: JSON.stringify({
+              workspaceId: workspace.id,
+              projectId: project.id,
+            }),
+          });
+        }
+        await load(true);
+      } catch {
+        // Keep the visible queue stable and try again on the next bounded poll.
+      } finally {
+        polling.current = false;
+      }
+    }
+
+    void poll();
+    const timer = window.setInterval(() => void poll(), ACTIVE_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [hasActiveGeneration, load, project.id, workspace.id, workspace.role]);
+
   async function refresh() {
     if (workspace.role !== "viewer")
       await apiRequest("/api/generations/reconcile", {
@@ -66,6 +118,7 @@ export function QueueView({
       }).catch(() => undefined);
     await load();
   }
+
   async function archive(id: string) {
     await apiRequest(`/api/generations/${id}`, {
       method: "PATCH",
@@ -77,6 +130,7 @@ export function QueueView({
     });
     await load();
   }
+
   return (
     <section>
       <header className="view-heading">
@@ -84,8 +138,8 @@ export function QueueView({
           <p className="eyebrow">SERVER-AUTHORITATIVE</p>
           <h1>Generation queue</h1>
           <p>
-            Callbacks and bounded reconciliation continue after the browser
-            closes.
+            Active jobs update automatically every few seconds. Callbacks and
+            bounded reconciliation continue after the browser closes.
           </p>
         </div>
         <button className="button secondary" onClick={refresh} disabled={busy}>
@@ -115,9 +169,7 @@ export function QueueView({
               </span>
             </header>
             <p>{generation.raw_prompt}</p>
-            {!["succeeded", "failed", "cancelled", "timed_out"].includes(
-              generation.state,
-            ) && (
+            {!TERMINAL_STATES.has(generation.state) && (
               <div
                 className="progress"
                 aria-label={`${generation.progress}% complete`}

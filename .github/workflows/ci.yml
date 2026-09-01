@@ -23,8 +23,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx prettier --write server/generation/ltx-multi-reference.ts tests/ltx25-multi-reference.test.ts
-      - run: git diff -- server/generation/ltx-multi-reference.ts tests/ltx25-multi-reference.test.ts
       - run: npm run format
       - run: npm run lint
       - run: npm run typecheck

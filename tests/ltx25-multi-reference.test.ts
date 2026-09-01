@@ -62,12 +62,14 @@ describe("LTX-2.5 prompt image anchors", () => {
     expect(result.providerPayload.input.duration).toBe("12");
     expect(images).toHaveLength(9);
     expect(images[0].frame_index).toBe(0);
-    expect(
-      images.slice(1).every((image) => image.frame_index % 8 === 0),
-    ).toBe(true);
+    expect(images.slice(1).every((image) => image.frame_index % 8 === 0)).toBe(
+      true,
+    );
     expect(new Set(images.map((image) => image.frame_index)).size).toBe(9);
     expect(images.at(-1)!.frame_index).toBeLessThan(289);
-    expect(result.compiledPrompt).toContain("@image9 = visual anchor 9");
+    expect(result.compiledPrompt).toContain(
+      "@image9 / @reference_9 = visual anchor 9",
+    );
     expect(result.sanitizedRequestPreview.input.images).not.toEqual(images);
   });
 

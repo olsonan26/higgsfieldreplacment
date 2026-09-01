@@ -7,6 +7,7 @@ import {
   MODEL_CAPABILITIES,
   publicCapability,
 } from "@/server/providers/generation-provider/capabilities";
+import { LTX_25_CAPABILITY_V4 } from "@/server/providers/generation-provider/ltx25-v4";
 
 export async function loadStudioInitialData(
   requestedWorkspaceId?: string,
@@ -67,6 +68,9 @@ export async function loadStudioInitialData(
     .select("display_name, avatar_path")
     .eq("id", userId)
     .maybeSingle();
+  const studioCapabilities = MODEL_CAPABILITIES.map((capability) =>
+    capability.appModelKey === "ltx-2-5" ? LTX_25_CAPABILITY_V4 : capability,
+  );
   return {
     user: {
       id: userId,
@@ -83,6 +87,6 @@ export async function loadStudioInitialData(
           settings: projectSettings.settings as Record<string, unknown>,
         }
       : null,
-    capabilities: MODEL_CAPABILITIES.map(publicCapability),
+    capabilities: studioCapabilities.map(publicCapability),
   };
 }

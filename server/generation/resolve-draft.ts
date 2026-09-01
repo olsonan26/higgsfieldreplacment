@@ -11,6 +11,7 @@ import {
 import type { GenerationDraft } from "@/lib/generation/request-schema";
 import type { createClient } from "@/lib/supabase/server";
 import { requireProject } from "@/server/auth/workspace";
+import { compileLtxMultiReference } from "@/server/generation/ltx-multi-reference";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -47,7 +48,7 @@ export async function resolveGenerationDraft(
     ? await supabase
         .from("assets")
         .select(
-          "id, workspace_id, media_kind, storage_bucket, storage_path, mime_type, byte_size, metadata, lifecycle_state",
+          "id, workspace_id, media_kind, storage_bucket, storage_path, safe_filename, mime_type, byte_size, metadata, lifecycle_state",
         )
         .eq("workspace_id", draft.workspaceId)
         .in("id", referenceIds)
@@ -117,7 +118,9 @@ export async function resolveGenerationDraft(
         ? { durationSeconds: metadata.durationSeconds }
         : {}),
       ...(reference.groupId ? { groupId: reference.groupId } : {}),
-      ...(reference.label ? { label: reference.label } : {}),
+      ...(reference.label || asset.safe_filename
+        ? { label: reference.label || asset.safe_filename }
+        : {}),
       ...(reference.description ? { description: reference.description } : {}),
       ...(reference.startMs !== undefined
         ? { startMs: reference.startMs }
@@ -194,7 +197,7 @@ export async function resolveGenerationDraft(
     }
   }
 
-  const compiled = compileGenerationRequest({
+  const baseCompiled = compileGenerationRequest({
     rawPrompt: draft.rawPrompt,
     creativeDirection: draft.creativeDirection,
     technicalSettings: draft.technicalSettings,
@@ -202,5 +205,9 @@ export async function resolveGenerationDraft(
     skills,
     capability,
   });
+  const compiled =
+    capability.adapter === "ltx25"
+      ? compileLtxMultiReference(baseCompiled, references)
+      : baseCompiled;
   return { capabilityRow, capability, references, skills, compiled };
 }

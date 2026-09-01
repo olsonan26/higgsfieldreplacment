@@ -17,6 +17,7 @@ import runpod
 
 MODEL_DIR = Path(os.environ.get("LTX_MODEL_DIR", "/runpod-volume/models/ltx-2.5"))
 MAX_REFERENCE_BYTES = 20_000_000
+MAX_REFERENCE_IMAGES = 9
 MAX_SAFETENSORS_HEADER_BYTES = 64 * 1024 * 1024
 DIMENSIONS = {
     ("720p", "16:9"): (1024, 576),
@@ -161,30 +162,58 @@ def _command(payload: dict, output_path: Path, work_dir: Path) -> list[str]:
     ]
     if pipeline == "production":
         command.extend(["--detailing-lora", str(model["detailing_lora"])])
-    duration = str(payload.get("duration", "5"))
+
+    duration = str(payload.get("duration", "auto"))
+    fixed_num_frames = None
     if duration == "auto":
         command.extend(["--auto-duration", "3", "12"])
-    elif duration in {"5", "10"}:
-        command.extend(["--num-frames", "121" if duration == "5" else "241"])
+    elif duration in {"5", "10", "12"}:
+        fixed_num_frames = {"5": 121, "10": 241, "12": 289}[duration]
+        command.extend(["--num-frames", str(fixed_num_frames)])
     else:
         raise ValueError("Unsupported duration")
+
     seed = payload.get("seed")
     if seed is not None:
-        if not isinstance(seed, int) or not 0 <= seed <= 2_147_483_647:
+        if not isinstance(seed, int) or isinstance(seed, bool) or not 0 <= seed <= 2_147_483_647:
             raise ValueError("seed is outside the supported range")
         command.extend(["--seed", str(seed)])
     if payload.get("enhance_prompt") is True:
         command.append("--enhance-prompt")
+
     images = payload.get("images", [])
-    if not isinstance(images, list) or len(images) > 1:
-        raise ValueError("At most one first-frame image is supported")
-    if images:
-        image = images[0]
+    if not isinstance(images, list) or len(images) > MAX_REFERENCE_IMAGES:
+        raise ValueError(f"At most {MAX_REFERENCE_IMAGES} image conditions are supported")
+    seen_frames: set[int] = set()
+    zero_frame_count = 0
+    for index, image in enumerate(images):
         if not isinstance(image, dict) or not isinstance(image.get("url"), str):
-            raise ValueError("Invalid first-frame input")
-        reference_path = work_dir / "first-frame"
+            raise ValueError("Invalid image condition")
+        frame_index = image.get("frame_index", 0 if index == 0 else None)
+        strength = image.get("strength", 1.0)
+        if not isinstance(frame_index, int) or isinstance(frame_index, bool) or frame_index < 0:
+            raise ValueError("Image frame_index must be a non-negative integer")
+        if not isinstance(strength, (int, float)) or isinstance(strength, bool) or not 0 < float(strength) <= 1:
+            raise ValueError("Image strength must be greater than 0 and no more than 1")
+        if frame_index in seen_frames:
+            raise ValueError("Image conditions must use distinct frame indices")
+        seen_frames.add(frame_index)
+        if frame_index == 0:
+            zero_frame_count += 1
+            if zero_frame_count > 1:
+                raise ValueError("Only one image condition may target frame zero")
+        else:
+            if duration == "auto":
+                raise ValueError("Nonzero image anchors require a fixed duration")
+            if frame_index % 8 != 0:
+                raise ValueError("Nonzero LTX image anchors must use frame indices divisible by 8")
+            if fixed_num_frames is not None and frame_index >= fixed_num_frames:
+                raise ValueError("Image frame_index falls outside the generated timeline")
+        reference_path = work_dir / f"reference-{index}"
         _download_reference(image["url"], reference_path)
-        command.extend(["--image", str(reference_path), "0", "1.0"])
+        command.extend(
+            ["--image", str(reference_path), str(frame_index), str(float(strength))]
+        )
     return command
 
 

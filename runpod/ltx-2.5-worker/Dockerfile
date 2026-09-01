@@ -21,4 +21,5 @@ RUN git clone --filter=blob:none https://github.com/Lightricks/LTX-2.git . && \
     uv pip install runpod==1.12.0 requests==2.34.2
 
 COPY handler.py /worker/handler.py
+RUN python3 -m py_compile /worker/handler.py
 CMD ["uv", "run", "python", "/worker/handler.py"]
